@@ -1,0 +1,26 @@
+/* Small shared helpers for screens. */
+(function () {
+  'use strict';
+  const { t, nm, qty, money } = I18N;
+  window.Screens = window.Screens || {};
+
+  /** Period filter used by list screens. */
+  function range(mode, anchor) {
+    const d = anchor || Store.today();
+    if (mode === 'today' || mode === 'day') return [d, d];
+    if (mode === 'week') return [Store.addDays(d, -6), d];
+    if (mode === 'month') { const s = d.slice(0, 8) + '01'; const e = new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7), 0)).toISOString().slice(0, 10); return [s, e]; }
+    if (mode === 'year') return [d.slice(0, 4) + '-01-01', d.slice(0, 4) + '-12-31'];
+    return ['0000-01-01', '9999-12-31'];
+  }
+  const periodOptions = () => [
+    { value: 'today', label: t('Today') }, { value: 'week', label: t('7 days') }, { value: 'month', label: t('This month') }, { value: 'all', label: t('All') },
+  ];
+  const linesText = (lines) => lines.map((l) => { const it = Store.item(l.itemId); return nm(it) + ' ' + qty(l.qty); }).join('، ');
+  const docNo = (kind, d) => (kind === 'customer' ? '#' + d.no : 'SR-' + d.no);
+  const payNo = (p) => (p.dir === 'in' ? 'RC-' : 'VP-') + p.no;
+  const matches = (q, ...vals) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q.toLowerCase()));
+  const csvSafe = (s) => s;
+  const kindOfDocRoute = (kind) => (kind === 'customer' ? 'sales' : 'receipts');
+  window.Util = { range, periodOptions, linesText, docNo, payNo, matches, csvSafe, kindOfDocRoute, money };
+})();

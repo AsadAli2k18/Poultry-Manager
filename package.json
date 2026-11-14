@@ -1,0 +1,21 @@
+{
+  "name": "poultry-manager",
+  "version": "0.1.0",
+  "description": "Poultry Manager - offline desktop app for a poultry and meat shop (front-end demo)",
+  "main": "desktop/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "vendor": "node tools/copy-vendor.js",
+    "demo": "node tools/serve.js"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  },
+  "dependencies": {
+    "@fontsource/noto-nastaliq-urdu": "^5.1.0",
+    "bootstrap-icons": "^1.11.3",
+    "htm": "^3.1.1",
+    "preact": "^10.24.3"
+  }
+}
