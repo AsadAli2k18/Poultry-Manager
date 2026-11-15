@@ -40,12 +40,15 @@
       </${Card}></${Page}>`;
   }
 
-  function PayForm({ dir, partyId: initialParty }) {
+  function PayForm({ dir, partyId: initialParty, replaces }) {
     const s = useStore(); const M = META[dir];
-    const [f, setF] = useState(() => ({ partyId: initialParty || '', date: Store.today(), amount: '', ...emptyPayment(), method: dir === 'out' ? 'online' : 'cash' }));
+    const old = replaces ? s.payments.find((x) => x.id === replaces) : null;
+    const [f, setF] = useState(() => (old
+      ? { partyId: old.partyId, date: old.date, amount: String(old.amount), method: old.method, ref: old.ref, fromAcc: old.fromAcc, toAcc: old.toAcc, handledBy: old.handledBy, onBehalf: old.onBehalf, note: old.note }
+      : { partyId: initialParty || '', date: Store.today(), amount: '', ...emptyPayment(), method: dir === 'out' ? 'online' : 'cash' }));
     const [preview, setPreview] = useState(null); const [busy, setBusy] = useState(false);
     const party = f.partyId ? Store.party(M.kind, f.partyId) : null;
-    const bal = party ? Store.balance(M.kind, party.id) : 0;
+    const bal = party ? Store.balance(M.kind, party.id) + (old && Store.active(old) && old.partyId === party.id ? old.amount : 0) : 0;
     const amt = +f.amount || 0;
     const unpaid = party ? (M.kind === 'customer' ? s.invoices : s.receipts).filter((d) => Store.docParty(d) === party.id).map((d) => ({ d, x: Store.docStatus(M.kind, d) })).filter((r) => r.x.due > 0).sort((a, b) => a.d.date.localeCompare(b.d.date)) : [];
     // preview of oldest-first settlement
@@ -56,12 +59,18 @@
       if (!(amt > 0)) return toast(t('Enter the amount'), 'error');
       const err = paymentValid(f); if (err) return toast(err, 'error');
       if (amt > bal && bal >= 0 && !(await confirmBox(t('Amount is more than the balance'), tf('Balance is {b}. The extra {x} will be kept as advance. Continue?', { b: money(bal), x: money(amt - bal) })))) return;
-      if (Store.isDuplicatePayment(dir, f) && !(await confirmBox(t('Possible duplicate'), t('The same payment was saved a moment ago. Save it again?'), { okLabel: t('Save again') }))) return;
-      setBusy(true); const p = Store.savePayment(dir, { ...f, amount: amt }); setBusy(false);
+      if (!old && Store.isDuplicatePayment(dir, f) && !(await confirmBox(t('Possible duplicate'), t('The same payment was saved a moment ago. Save it again?'), { okLabel: t('Save again') }))) return;
+      const data = { ...f, amount: amt };
+      if (old) {
+        const reason = await ask({ title: t('Reason for correction'), body: tf('{no} will be cancelled and replaced by this new entry. Both stay on record.', { no: Util.payNo(old) }), input: t('Reason'), inputReq: true, okLabel: t('Save correction') });
+        if (!reason) return; data.replaces = old.id; data.reason = reason;
+      }
+      setBusy(true); const p = Store.savePayment(dir, data); setBusy(false);
       toast(tf('{no} saved', { no: Util.payNo(p) }), 'success');
       if (andPrint) setPreview(p); else history.back();
     }
-    return html`<${Page} title=${t(M.newLabel)} icon=${M.icon} actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}>`}>
+    return html`<${Page} title=${old ? tf('Correct {no}', { no: Util.payNo(old) }) : t(M.newLabel)} icon=${M.icon} actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}>`}>
+      ${old && html`<div class="alert alert-yellow"><${Ico} n="info-circle" /> ${t('Correcting keeps the original entry on record as cancelled, and saves this as a new entry.')}</div>`}
       <div class="form-grid"><div class="form-main">
         <${Card} title=${t(M.partyLabel)}>
           <div class="grid-2"><${Field} label=${t(M.partyLabel)} req span="2"><${PartyPicker} kind=${M.kind} value=${f.partyId} onChange=${(v) => setF({ ...f, partyId: v })} autoFocus=${!f.partyId} /></${Field}>
@@ -103,9 +112,12 @@
     };
     const row = (k, v) => v ? html`<div class="kv"><span>${t(k)}</span><b>${v}</b></div>` : null;
     return html`<${Modal} title=${t(M.one) + ' ' + Util.payNo(p)} onClose=${onClose} footer=${html`
-      ${p.status !== 'cancelled' && html`<${Btn} kind="danger-ghost" icon="x-circle" onClick=${cancel}>${t('Cancel entry')}</${Btn}>`}<span class="grow"></span>
+      ${p.status !== 'cancelled' && html`<${Btn} kind="danger-ghost" icon="x-circle" onClick=${cancel}>${t('Cancel entry')}</${Btn}>
+        <${Btn} icon="pencil-square" onClick=${() => { onClose(); nav(M.route + '-new', { replaces: p.id }); }}>${t('Correct')}</${Btn}>`}<span class="grow"></span>
       <${Btn} kind="ghost" onClick=${onClose}>${t('Back')}</${Btn}><${Btn} kind="primary" icon="printer" onClick=${() => setPreview(true)}>${t('Print')}</${Btn}>`}>
-      ${p.status === 'cancelled' && html`<div class="alert alert-red">${t('Cancelled')} <${D} v=${p.cancelDate} /> — ${p.cancelReason}</div>`}
+      ${p.status === 'cancelled' && html`<div class="alert alert-red">${t('Cancelled')} <${D} v=${p.cancelDate} /> — ${p.cancelReason}
+        ${p.replacedBy && html` · <a onClick=${() => App.openPayment(p.replacedBy)}>${t('Open replacement')}</a>`}</div>`}
+      ${p.replaces && html`<div class="alert alert-yellow"><${Ico} n="arrow-repeat" /> ${t('This entry replaces')} <a onClick=${() => App.openPayment(p.replaces)}>${(() => { const o = s.payments.find((x) => x.id === p.replaces); return o ? Util.payNo(o) : ''; })()}</a></div>`}
       <div class="amount-hero"><span class="muted">${t(p.dir === 'in' ? 'Received from' : 'Paid to')} <a onClick=${() => { onClose(); nav(M.kind, { id: party.id }); }}><b>${nm(party)}</b></a></span><div class="num">${money(p.amount)}</div></div>
       <div class="kvs">${row('Date', html`<span class="num">${I18N.dmy(p.date)} ${p.time}</span>`)}${row('Payment method', nm(Store.method(p.method)))}${row('Transaction ID / reference', html`<span class="num">${p.ref}</span>`)}
         ${row('From account', p.fromAcc)}${row('To account', p.toAcc)}${row('Handled by', p.handledBy)}${row('Paid on behalf of / by', p.onBehalf)}${row('Note', p.note)}
@@ -139,7 +151,7 @@
             { label: t('Date'), render: (e) => html`<${D} v=${e.date} />` }, { label: t('Category'), render: (e) => html`<span class="badge badge-brand">${nm(Store.category(e.categoryId))}</span>` },
             { label: t('Description'), render: (e) => e.desc }, { label: t('Method'), render: (e) => nm(Store.method(e.method)) },
             { label: t('Amount'), num: true, render: (e) => html`<b><${Num} v=${e.amount} /></b>` },
-            { label: '', render: (e) => (e.status === 'cancelled' ? html`<${Badge} s="cancelled" />` : html`<button class="icon-btn" title=${t('Cancel entry')} onClick=${() => cancel(e)}><${Ico} n="x-circle" /></button>`) }]}
+            { label: '', render: (e) => (e.status === 'cancelled' ? html`<span title=${e.cancelReason || ''}><${Badge} s="cancelled" /></span>` : html`<span class="nowrap"><button class="icon-btn" title=${t('Correct')} onClick=${() => setForm(e)}><${Ico} n="pencil-square" /></button><button class="icon-btn" title=${t('Cancel entry')} onClick=${() => cancel(e)}><${Ico} n="x-circle" /></button></span>`) }]}
             foot=${['', '', t('Total'), '', html`<b><${Num} v=${sum} /></b>`, '']} />
         </${Card}>
         <${Card} title=${t('By category')} actions=${html`<${Btn} kind="ghost" size="sm" icon="gear" onClick=${() => nav('settings', { tab: 'categories' })}>${t('Categories')}</${Btn}>`}>
@@ -147,19 +159,25 @@
             <div class="bar"><i style=${'width:' + Math.round((byCat[k] / (sum || 1)) * 100) + '%'}></i></div></div>`)}
           ${!sum && html`<div class="muted">${t('No records')}</div>`}
         </${Card}></div>
-      ${form && html`<${ExpenseForm} onClose=${() => setForm(null)} />`}
+      ${form && html`<${ExpenseForm} old=${form.id ? form : null} onClose=${() => setForm(null)} />`}
     </${Page}>`;
   }
-  function ExpenseForm({ onClose }) {
+  function ExpenseForm({ onClose, old }) {
     const s = useStore();
-    const [f, setF] = useState({ date: Store.today(), categoryId: s.categories.find((c) => c.active).id, amount: '', method: 'cash', desc: '' });
+    const [f, setF] = useState(old ? { date: old.date, categoryId: old.categoryId, amount: String(old.amount), method: old.method, desc: old.desc }
+      : { date: Store.today(), categoryId: (s.categories.find((c) => c.active) || {}).id, amount: '', method: 'cash', desc: '' });
     const [newCat, setNewCat] = useState('');
-    const save = () => {
+    const save = async () => {
       if (!(+f.amount > 0)) return toast(t('Enter the amount'), 'error');
-      Store.saveExpense(f); toast(t('Expense saved'), 'success'); onClose();
+      if (!f.categoryId) return toast(t('Choose a category'), 'error');
+      if (old) {
+        const reason = await ask({ title: t('Reason for correction'), body: t('The old entry stays on record as cancelled and this is saved as a new entry.'), input: t('Reason'), inputReq: true, okLabel: t('Save correction') });
+        if (!reason) return; Store.saveExpense({ ...f, replaces: old.id, reason });
+      } else Store.saveExpense(f);
+      toast(t('Expense saved'), 'success'); onClose();
     };
-    const addCat = () => { if (!newCat.trim()) return; Store.saveCategory({ name_en: newCat.trim(), name_ur: Translit.offline(newCat.trim()) }); const c = Store.s.categories[Store.s.categories.length - 1]; setF({ ...f, categoryId: c.id }); setNewCat(''); };
-    return html`<${Modal} title=${t('Add expense')} onClose=${onClose} footer=${html`<${Btn} kind="ghost" onClick=${onClose}>${t('Back')}</${Btn}><${Btn} kind="primary" icon="check2" onClick=${save}>${t('Save')}</${Btn}>`}>
+    const addCat = () => { if (!newCat.trim()) return; const c = Store.saveCategory({ name_en: newCat.trim(), name_ur: Translit.offline(newCat.trim()) }); setF({ ...f, categoryId: c.id }); setNewCat(''); };
+    return html`<${Modal} title=${t(old ? 'Correct expense' : 'Add expense')} onClose=${onClose} footer=${html`<${Btn} kind="ghost" onClick=${onClose}>${t('Back')}</${Btn}><${Btn} kind="primary" icon="check2" onClick=${save}>${t('Save')}</${Btn}>`}>
       <div class="grid-2"><${Field} label=${t('Date')}><${DateInp} value=${f.date} onChange=${(v) => setF({ ...f, date: v })} /></${Field}>
         <${Field} label=${t('Amount')} req><input class="inp num big-num" type="number" autoFocus value=${f.amount} onInput=${(e) => setF({ ...f, amount: e.target.value })} /></${Field}>
         <${Field} label=${t('Category')} req span="2"><div class="chips">${s.categories.filter((c) => c.active).map((c) => html`<button type="button" class=${'chip' + (c.id === f.categoryId ? ' on' : '')} onClick=${() => setF({ ...f, categoryId: c.id })}>${nm(c)}</button>`)}

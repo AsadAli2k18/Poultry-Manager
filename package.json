@@ -1,21 +1,60 @@
 {
   "name": "poultry-manager",
-  "version": "0.1.0",
-  "description": "Poultry Manager - offline desktop app for a poultry and meat shop (front-end demo)",
+  "version": "1.0.0",
+  "description": "Poultry Manager - offline desktop software for a poultry and meat shop",
   "main": "desktop/main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
+    "dist": "electron-builder --win",
+    "postinstall": "electron-builder install-app-deps",
+    "test": "node tools/run-selftest.js",
     "vendor": "node tools/copy-vendor.js",
     "demo": "node tools/serve.js"
   },
   "devDependencies": {
-    "electron": "^33.2.0"
-  },
-  "dependencies": {
+    "@electron/rebuild": "^4.2.1",
+    "electron": "^33.2.0",
+    "electron-builder": "^26.18.0",
     "@fontsource/noto-nastaliq-urdu": "^5.1.0",
     "bootstrap-icons": "^1.11.3",
     "htm": "^3.1.1",
     "preact": "^10.24.3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0"
+  },
+  "build": {
+    "appId": "pk.poultrymanager.app",
+    "productName": "Poultry Manager",
+    "copyright": "Poultry Manager",
+    "files": [
+      "app/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Poultry Manager",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "PoultryManager-Setup-${version}.exe"
+    }
   }
 }

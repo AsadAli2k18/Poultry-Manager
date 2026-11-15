@@ -22,5 +22,24 @@
   const matches = (q, ...vals) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q.toLowerCase()));
   const csvSafe = (s) => s;
   const kindOfDocRoute = (kind) => (kind === 'customer' ? 'sales' : 'receipts');
-  window.Util = { range, periodOptions, linesText, docNo, payNo, matches, csvSafe, kindOfDocRoute, money };
+  /** Reads a picked image and shrinks it (phone photos are several MB) to a JPEG data URL. */
+  function readImage(file, maxPx = 1600) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onerror = reject;
+      r.onload = () => {
+        const img = new Image();
+        img.onerror = () => resolve(r.result);
+        img.onload = () => {
+          const k = Math.min(1, maxPx / Math.max(img.width, img.height));
+          const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/jpeg', 0.82));
+        };
+        img.src = r.result;
+      };
+      r.readAsDataURL(file);
+    });
+  }
+  window.Util = { readImage,  range, periodOptions, linesText, docNo, payNo, matches, csvSafe, kindOfDocRoute, money };
 })();

@@ -209,6 +209,12 @@ tfoot td{font-weight:700;border-top:2px solid #333;background:#f2f2f2}
     return report(obj, cfg);
   }
   function printHtml(html) {
+    // Desktop app: Windows print dialog through Electron, page size taken from the design
+    if (window.PM && window.PM.print) {
+      const m = /@page{size:([d.]+)mm ([d.]+)mm/.exec(html);
+      const paper = m ? { width: Math.round(+m[1] * 1000), height: Math.round(+m[2] * 1000) } : 'A4';
+      return window.PM.print(html, { paper }).then((r) => { if (r && !r.ok && r.reason && !/cancel/i.test(r.reason)) UI.toast('Print: ' + r.reason, 'error'); return r; });
+    }
     const f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
     document.body.appendChild(f);

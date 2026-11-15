@@ -13,7 +13,7 @@ Built to `SRS-v2.md`. Changed from v1: **no XAMPP**. The software ships as a sta
 | Installer | `electron-builder` → one `PoultryManager-Setup.exe` | Owner double-clicks to install. No other software needed. |
 | Fonts, icons, libraries | Bundled in `app/vendor/` | Nothing loads from the internet |
 
-## Phase 1 — Front-end demo (done, for review)
+## Phase 1 — Front-end demo (done)
 
 The whole interface, with dummy data and working flows:
 
@@ -31,7 +31,7 @@ The whole interface, with dummy data and working flows:
 
 **Review loop:** the owner and you go through each screen and flow, list the changes, and I apply them. Repeat until the design is approved.
 
-## Phase 2 — Backend (after design approval)
+## Phase 2 — Backend (done in v1.0)
 
 1. **SQLite schema** for every record in SRS §5, plus a migration runner.
 2. **Data API in Electron's main process** that mirrors the `Store` functions the screens already call (save document, payment, ledger, summary…). The screens don't change; only `store.js` switches from local storage to the API.
@@ -41,10 +41,13 @@ The whole interface, with dummy data and working flows:
    - Keep the last N backups. Copy to USB when present.
    - Restore with a safety copy of the current data taken first.
 4. **Real folder picker and printing** through Electron (Windows printer dialog, plus silent print to a default printer if wanted).
-5. **Owner password** stored hashed. Auto-lock after idle time.
+5. **Owner password** stored hashed (scrypt). The first-time password is 1234 until it is changed. Auto-lock after idle time is still to do.
 6. **Audit log** written for every change.
 
 ## Phase 3 — Packaging and testing
+
+Done: `npm run dist` builds the NSIS installer, and `npm test` runs end-to-end checks of the real app: every entry type, corrections, cancels, restart persistence, the catch-up backup, restore, erase, and sample data. Still to do: the checks on the shop PC below.
+
 
 - `electron-builder` NSIS installer with a desktop and Start-menu shortcut. Data and backups go in `Documents\PoultryManager`, so uninstalling never deletes data.
 - Acceptance checks from SRS §7 on a clean Windows PC with the network unplugged.

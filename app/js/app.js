@@ -32,14 +32,15 @@
   function Login({ onIn }) {
     useStore(); const shop = Store.s.settings.shop;
     const [pw, setPw] = useState(''); const [err, setErr] = useState('');
-    const go = (e) => { e.preventDefault(); if (pw === Store.s.settings.password) { Store.s.audit.unshift({ id: Store.uid(), at: Store.today() + ' ' + Store.nowTime(), action: 'login', ref: '', detail: 'Owner logged in' }); onIn(); } else setErr(t('Wrong password')); };
+    const [isDefault] = useState(() => Store.defaultPassword());
+    const go = (e) => { e.preventDefault(); if (Store.checkPassword(pw)) { Store.logLogin(); onIn(); } else setErr(t('Wrong password')); };
     return html`<div class="login"><form class="login-card" onSubmit=${go}>
       <div class="login-logo"><${Logo} size=${56} /></div>
       <h1>${nm(shop)}</h1><div class="muted">${I18N.lang === 'ur' ? shop.sub_ur : shop.sub_en}</div>
       <${Field} label=${t('Owner password')}><input class="inp big-num" type="password" autoFocus value=${pw} onInput=${(e) => { setPw(e.target.value); setErr(''); }} /></${Field}>
       ${err && html`<div class="tx-red">${err}</div>`}
       <${Btn} kind="primary" size="lg" block type="submit" icon="box-arrow-in-left">${t('Open')}</${Btn}>
-      <div class="demo-hint"><${Ico} n="info-circle" /> ${t('Demo password')}: <b class="num">1234</b></div>
+      ${isDefault && html`<div class="demo-hint"><${Ico} n="info-circle" /> ${t(Store.desktop ? 'First-time password' : 'Demo password')}: <b class="num">1234</b>${Store.desktop ? html`<div class="small">${t('Change it in Settings → Password')}</div>` : ''}</div>`}
       <div class="login-lang"><button type="button" class=${I18N.lang === 'ur' ? 'on' : ''} onClick=${() => I18N.setLang('ur')}>اردو</button><button type="button" class=${I18N.lang === 'en' ? 'on' : ''} onClick=${() => I18N.setLang('en')}>English</button></div>
     </form></div>`;
   }
@@ -64,7 +65,7 @@
       <aside class="sidebar">
         <div class="sb-logo"><${Logo} /><div><div class="sb-label">${nm(shop)}</div><div class="sb-sub">${t('Poultry Manager')}</div></div></div>
         <nav>${NAV.map((g) => html`${g.sec && html`<div class="sb-sec">${t(g.sec)}</div>`}${g.items.map((it) => html`<button class=${'nav-item' + (isActive(it, loc.route) ? ' on' : '')} onClick=${() => nav(it.r)}><${Ico} n=${it.i} /><span>${t(it.l)}</span></button>`)}`)}</nav>
-        <div class="sb-foot"><span class="demo-tag">${t('DEMO — dummy data')}</span></div>
+        <div class="sb-foot">${!Store.desktop ? html`<span class="demo-tag">${t('DEMO — dummy data')}</span>` : s.settings.sample ? html`<span class="demo-tag">${t('Sample data')}</span>` : ''}</div>
       </aside>
       <div class="sb-scrim" onClick=${() => setMenu(false)}></div>
       <div class="main-wrap">
@@ -89,7 +90,7 @@
   function Home() {
     const s = useStore();
     const d = Store.today(); const r = Store.summary(d, d);
-    const b = s.settings.backup; const last = b.history[0];
+    const b = s.settings.backup; const last = Store.backupHistory().find((h) => h.ok && h.kind !== 'safety' && h.kind !== 'restore');
     const recent = [].concat(
       s.invoices.slice(-12).map((x) => ({ at: x.date + x.time, icon: 'receipt', tone: 'brand', text: html`${t('Sale')} <b class="num">#${x.no}</b> — ${nm(Store.party('customer', x.customerId))}`, amt: Store.total(x), go: () => nav('sales-view', { id: x.id }), c: x.status === 'cancelled' })),
       s.receipts.slice(-8).map((x) => ({ at: x.date + x.time, icon: 'truck', tone: 'teal', text: html`${t('Stock in')} <b class="num">SR-${x.no}</b> — ${nm(Store.party('vendor', x.vendorId))} · <span class="num">${qty(x.lines.reduce((a, l) => a + +l.qty, 0))}</span> kg`, amt: Store.total(x), go: () => nav('receipts-view', { id: x.id }), c: x.status === 'cancelled' })),

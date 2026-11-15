@@ -1,13 +1,17 @@
-/* Poultry Manager — demo data store.
- * Holds all records in memory (persisted to localStorage for the demo) and
- * computes every balance, stock figure and status from the records, the same
- * way the real backend will. Nothing here is stored as a running total.
+/* Poultry Manager — data store.
+ * Holds all records in memory and computes every balance, stock figure and status
+ * from the records. Nothing is stored as a running total.
+ * Desktop app: every change is written to the SQLite database (desktop/db.js) through
+ * window.PM before the screen moves on. Browser demo: kept in localStorage with dummy data.
  */
 (function () {
   'use strict';
   const LS_KEY = 'pm.demo.v4';
+  const DESK = !!(window.PM && window.PM.desktop);
+  const TABLES = ['items', 'customers', 'vendors', 'categories', 'methods', 'invoices', 'receipts', 'payments', 'adjustments', 'expenses'];
   const listeners = new Set();
   let S = null;
+  let INFO = {};
 
   /* ---------- helpers ---------- */
   const uid = () => Math.random().toString(36).slice(2, 10);
@@ -81,20 +85,8 @@
         { id: 'v3', code: 'V-003', name_ur: 'گرین ویلی پولٹری فارم', name_en: 'Green Valley Poultry Farm', phone: '0300-0000202', address: 'Village Road', opening: 150000, own_farm: false, note: '', active: true },
         { id: 'v4', code: 'V-004', name_ur: 'الرحمان فش ٹریڈرز', name_en: 'Al-Rehman Fish Traders', phone: '0300-0000203', address: 'River Side', opening: 0, own_farm: false, note: '', active: true },
       ],
-      categories: [
-        { id: 'e1', name_ur: 'بل', name_en: 'Bills', active: true },
-        { id: 'e2', name_ur: 'ٹرانسپورٹ', name_en: 'Transport', active: true },
-        { id: 'e3', name_ur: 'مزدوری', name_en: 'Labour', active: true },
-        { id: 'e4', name_ur: 'دکان کا سامان', name_en: 'Shop supplies', active: true },
-      ],
-      methods: [
-        { id: 'cash', name_ur: 'نقد', name_en: 'Cash', cash: true, active: true },
-        { id: 'online', name_ur: 'آن لائن ٹرانسفر', name_en: 'Online transfer', active: true },
-        { id: 'easypaisa', name_ur: 'ایزی پیسہ', name_en: 'Easypaisa', active: true },
-        { id: 'jazzcash', name_ur: 'جاز کیش', name_en: 'JazzCash', active: true },
-        { id: 'bank', name_ur: 'بینک جمع', name_en: 'Bank deposit', active: true },
-        { id: 'cheque', name_ur: 'چیک', name_en: 'Cheque', active: true },
-      ],
+      categories: defaultCategories(),
+      methods: defaultMethods(),
       invoices: [], receipts: [], payments: [], adjustments: [], expenses: [], audit: [],
       counters: { invoice: 1000, receipt: 200, in: 500, out: 300, expense: 0 },
     };
@@ -194,6 +186,45 @@
     return st;
   }
 
+  function defaultCategories() {
+    return [
+      { id: 'e1', name_ur: 'بل', name_en: 'Bills', active: true },
+      { id: 'e2', name_ur: 'ٹرانسپورٹ', name_en: 'Transport', active: true },
+      { id: 'e3', name_ur: 'مزدوری', name_en: 'Labour', active: true },
+      { id: 'e4', name_ur: 'دکان کا سامان', name_en: 'Shop supplies', active: true },
+    ];
+  }
+  function defaultMethods() {
+    return [
+      { id: 'cash', name_ur: 'نقد', name_en: 'Cash', cash: true, active: true },
+      { id: 'online', name_ur: 'آن لائن ٹرانسفر', name_en: 'Online transfer', active: true },
+      { id: 'easypaisa', name_ur: 'ایزی پیسہ', name_en: 'Easypaisa', active: true },
+      { id: 'jazzcash', name_ur: 'جاز کیش', name_en: 'JazzCash', active: true },
+      { id: 'bank', name_ur: 'بینک جمع', name_en: 'Bank deposit', active: true },
+      { id: 'cheque', name_ur: 'چیک', name_en: 'Cheque', active: true },
+    ];
+  }
+  const defaultBackup = () => ({ enabled: true, frequency: 'weekly', day: 0, time: '22:00', folder: INFO.defaultBackupFolder || 'D:\\PoultryManager\\Backups', usb: true, keep: 12, history: [] });
+
+  /* A new, empty shop: start from where the business stands today (opening balances only). */
+  function blank() {
+    const d = today();
+    return {
+      version: 1,
+      settings: {
+        goLive: d, theme: 'light',
+        shop: { name_ur: 'میری دکان', name_en: 'My Shop', sub_ur: '', sub_en: '', addr_ur: '', addr_en: '', owners: [{ name_ur: '', name_en: '', phone: '' }], logo: '' },
+        accounts: [], print: defaultPrint(), backup: defaultBackup(),
+      },
+      items: [{ id: 'i1', name_ur: 'مرغی', name_en: 'Chicken', unit: 'kg', rate: 0, cost: null, opening: 0, active: true }],
+      customers: [],
+      vendors: [{ id: 'vfarm', code: 'V-001', name_ur: 'اپنا فارم', name_en: 'Own Farm', phone: '', address: '', opening: 0, own_farm: true, note: '', active: true }],
+      categories: defaultCategories(), methods: defaultMethods(),
+      invoices: [], receipts: [], payments: [], adjustments: [], expenses: [], audit: [],
+      counters: { invoice: 0, receipt: 0, in: 0, out: 0, expense: 0 },
+    };
+  }
+
   function defaultPrint() {
     const base = { template: 'classic', paper: 'A5', lang: 'ur', font: 'm', accent: '#B4141F', showLogo: false,
       showBillNo: true, showRate: true, showPrev: true, showReceived: true, showNewBal: true, showPayDetails: true, showSignature: true,
@@ -208,14 +239,75 @@
   }
 
   /* ---------- persistence ---------- */
+  let cache = {};
+  let snap = {}; // desktop: last saved JSON of every record, to send only what changed
+  let newAudit = []; // desktop: activity entries not yet written
+  let backupLogCache = null;
+
+  // fill in fields older data may not have
+  function normalize(st) {
+    TABLES.concat(['audit']).forEach((k) => { if (!Array.isArray(st[k])) st[k] = []; });
+    st.counters = { invoice: 0, receipt: 0, in: 0, out: 0, expense: 0, ...(st.counters || {}) };
+    st.settings.backup = { ...defaultBackup(), ...(st.settings.backup || {}) };
+    if (!st.settings.backup.folder) st.settings.backup.folder = INFO.defaultBackupFolder || '';
+    st.settings.print = { ...defaultPrint(), ...(st.settings.print || {}) };
+    st.adjustments.forEach((a) => { if (!a.status) a.status = 'active'; });
+    if (DESK) { delete st.settings.password; st.settings.backup.history = []; }
+    return st;
+  }
+  const settingsForDb = () => { const o = JSON.parse(JSON.stringify(S.settings)); delete o.password; if (o.backup) delete o.backup.history; return o; };
+  function snapshot() {
+    snap = {};
+    TABLES.forEach((t) => { const m = new Map(); S[t].forEach((r) => m.set(r.id, JSON.stringify(r))); snap[t] = m; });
+    snap.settings = JSON.stringify(settingsForDb()); snap.counters = JSON.stringify(S.counters);
+    newAudit = [];
+  }
+  function saveFailed(err) {
+    console.error(err);
+    // The screen must never show something that is not on disk: reload what the database has.
+    alert('Could not save to the database / ڈیٹا محفوظ نہیں ہو سکا\n\n' + (err && err.message ? err.message : err));
+    location.reload();
+    throw err;
+  }
+  function persistDesk() {
+    const ch = { upserts: {}, deletes: {} }; let any = false; const next = {};
+    TABLES.forEach((t) => {
+      const old = snap[t] || new Map(); const now = new Map(); const ups = [];
+      S[t].forEach((r) => { const j = JSON.stringify(r); now.set(r.id, j); if (old.get(r.id) !== j) ups.push(r); });
+      const dels = []; old.forEach((_, id) => { if (!now.has(id)) dels.push(id); });
+      if (ups.length) { ch.upserts[t] = ups; any = true; }
+      if (dels.length) { ch.deletes[t] = dels; any = true; }
+      next[t] = now;
+    });
+    if (newAudit.length) { ch.upserts.audit = newAudit.slice(); any = true; }
+    const sj = JSON.stringify(settingsForDb()); if (sj !== snap.settings) { ch.settings = JSON.parse(sj); any = true; }
+    const cj = JSON.stringify(S.counters); if (cj !== snap.counters) { ch.counters = S.counters; any = true; }
+    if (!any) return;
+    try { PM.commit(ch); } catch (e) { saveFailed(e); }
+    next.settings = sj; next.counters = cj; snap = next; newAudit = [];
+    if (S.audit.length > 1000) S.audit.length = 1000;
+  }
   function load() {
     try { const raw = localStorage.getItem(LS_KEY); if (raw) { const o = JSON.parse(raw); if (o && o.version === 1) return o; } } catch (e) { /* ignore */ }
     return null;
   }
-  function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+  function save() { if (DESK) return persistDesk(); try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
   function emit() { cache = {}; save(); listeners.forEach((f) => f()); }
-  S = load() || seed();
-  let cache = {};
+  // Replace everything (first run, sample data, erase, browser import)
+  function replaceState(st) {
+    S = normalize(st);
+    if (DESK) { try { PM.replaceAll({ ...S, settings: settingsForDb() }); } catch (e) { saveFailed(e); } snapshot(); }
+    cache = {}; save(); listeners.forEach((f) => f());
+  }
+
+  if (DESK) {
+    const r = PM.load(); INFO = r.info || {};
+    if (r.state) { S = normalize(r.state); snapshot(); } else { S = normalize(blank()); PM.replaceAll({ ...S, settings: settingsForDb() }); snapshot(); }
+  } else {
+    S = load();
+    if (!S) { S = seed(); save(); } // saved straight away so links stay valid after a reload
+    normalize(S);
+  }
   const memo = (k, fn) => (k in cache ? cache[k] : (cache[k] = fn()));
 
   /* ---------- lookups ---------- */
@@ -238,14 +330,14 @@
     const ok = (o) => !upto || o.date <= upto;
     S.receipts.forEach((r) => { if (active(r) && ok(r)) r.lines.forEach((l) => { if (l.itemId === itemId) q += +l.qty; }); });
     S.invoices.forEach((r) => { if (active(r) && ok(r)) r.lines.forEach((l) => { if (l.itemId === itemId) q -= +l.qty; }); });
-    S.adjustments.forEach((a) => { if (a.itemId === itemId && ok(a)) q += +a.qty; });
+    S.adjustments.forEach((a) => { if (a.itemId === itemId && active(a) && ok(a)) q += +a.qty; });
     return r2(q);
   }
   function stockCard(itemId) {
     const it = item(itemId); const rows = [];
     S.receipts.forEach((r) => r.lines.forEach((l) => { if (l.itemId === itemId) { rows.push({ type: 'in', date: r.date, time: r.time, seq: r.seq, qty: +l.qty, doc: r, cancelled: !active(r) }); } }));
     S.invoices.forEach((r) => r.lines.forEach((l) => { if (l.itemId === itemId) { rows.push({ type: 'out', date: r.date, time: r.time, seq: r.seq, qty: -l.qty, doc: r, cancelled: !active(r) }); } }));
-    S.adjustments.forEach((a) => { if (a.itemId === itemId) rows.push({ type: 'adj', date: a.date, time: a.time, seq: a.seq, qty: +a.qty, adj: a }); });
+    S.adjustments.forEach((a) => { if (a.itemId === itemId) rows.push({ type: 'adj', date: a.date, time: a.time, seq: a.seq, qty: +a.qty, adj: a, cancelled: !active(a) }); });
     rows.sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : 1));
     let run = +it.opening || 0;
     rows.forEach((r) => { if (!r.cancelled) run = r2(run + r.qty); r.balance = run; });
@@ -325,7 +417,7 @@
       const c = avgCost(it.id);
       S.receipts.forEach((r) => { if (active(r) && inRange(r, from, to)) r.lines.forEach((l) => { if (l.itemId === it.id) { recv += +l.qty; recvAmt += l.qty * l.rate; } }); });
       S.invoices.forEach((r) => { if (active(r) && inRange(r, from, to)) r.lines.forEach((l) => { if (l.itemId === it.id) { sold += +l.qty; soldAmt += l.qty * l.rate; if (c != null) profit += (l.rate - c) * l.qty; } }); });
-      S.adjustments.forEach((a) => { if (a.itemId === it.id && inRange(a, from, to)) adj += +a.qty; });
+      S.adjustments.forEach((a) => { if (a.itemId === it.id && active(a) && inRange(a, from, to)) adj += +a.qty; });
       if (c == null) costKnown = false;
       return { item: it, opening: stockOf(it.id, addDays(from, -1)), recv: r2(recv), recvAmt: round(recvAmt), sold: r2(sold), soldAmt: round(soldAmt), adj: r2(adj), closing: stockOf(it.id, to), profit: round(profit), costKnown, cost: c };
     });
@@ -365,40 +457,60 @@
   }
 
   /* ---------- actions ---------- */
-  function audit(action, ref, detail) { S.audit.unshift({ id: uid(), at: today() + ' ' + nowTime(), action, ref, detail }); if (S.audit.length > 500) S.audit.length = 500; }
-  const nextSeq = () => Math.max(0, ...S.invoices.map((x) => x.seq), ...S.receipts.map((x) => x.seq), ...S.payments.map((x) => x.seq), ...S.adjustments.map((x) => x.seq || 0)) + 1;
+  function audit(action, ref, detail) {
+    const e = { id: uid() + uid(), at: today() + ' ' + nowTime(), action, ref, detail };
+    S.audit.unshift(e);
+    if (DESK) newAudit.push(e); else if (S.audit.length > 500) S.audit.length = 500;
+  }
+  const nextSeq = () => { let m = 0; ['invoices', 'receipts', 'payments', 'adjustments'].forEach((k) => S[k].forEach((x) => { if ((x.seq || 0) > m) m = x.seq; })); return Math.floor(m) + 1; };
+  // Shrinks a photo before it is stored (bills are photographed with phones: several MB each)
+  function storePhoto(data) {
+    if (!data || !DESK || !String(data).startsWith('data:')) return data || '';
+    const id = uid() + uid();
+    try { PM.putPhoto(id, data); } catch (e) { saveFailed(e); }
+    return 'db:' + id;
+  }
+  const photoCache = {};
+  function photoSrc(ref) {
+    if (!ref || !String(ref).startsWith('db:')) return ref || '';
+    const id = ref.slice(3);
+    if (!(id in photoCache)) { try { photoCache[id] = PM.getPhoto(id); } catch (e) { photoCache[id] = ''; } }
+    return photoCache[id];
+  }
 
   function recentDuplicate(list, test) {
     const cutoff = Date.now() - 15000;
     return list.some((x) => x._ts && x._ts > cutoff && test(x));
   }
 
+  const payRef = (p) => (p.dir === 'in' ? 'RC-' : 'VP-') + p.no;
   const A = {
     saveDoc(kind, data, opts = {}) {
       const isC = kind === 'customer';
       const list = docsFor(kind);
       const doc = {
-        id: uid(), no: ++S.counters[isC ? 'invoice' : 'receipt'], date: data.date, time: data.time || nowTime(), seq: nextSeq(),
+        id: uid() + uid(), no: ++S.counters[isC ? 'invoice' : 'receipt'], date: data.date, time: data.time || nowTime(), seq: nextSeq(),
         lines: data.lines.map((l) => ({ itemId: l.itemId, qty: r2(+l.qty), rate: +l.rate || 0 })), note: data.note || '', status: 'active', _ts: Date.now(),
       };
-      if (isC) doc.customerId = data.partyId; else { doc.vendorId = data.partyId; doc.vendorBillNo = data.vendorBillNo || ''; doc.vehicle = data.vehicle || ''; doc.photo = data.photo || ''; }
+      if (isC) doc.customerId = data.partyId; else { doc.vendorId = data.partyId; doc.vendorBillNo = data.vendorBillNo || ''; doc.vehicle = data.vehicle || ''; doc.photo = storePhoto(data.photo); }
       if (data.replaces) {
         const old = byId(list, data.replaces);
-        if (old && active(old)) { old.status = 'cancelled'; old.cancelDate = today(); old.cancelReason = (data.reason || 'Corrected') + ' → #' + doc.no; old.replacedBy = doc.id; }
+        if (old && active(old)) { old.status = 'cancelled'; old.cancelDate = today(); old.cancelReason = (data.reason || 'Corrected') + ' → ' + (isC ? '#' : 'SR-') + doc.no; old.replacedBy = doc.id; }
         doc.replaces = data.replaces;
-        S.payments.forEach((p) => { if (p.docId === data.replaces) p.docId = doc.id; });
+        // a payment taken with the old bill now belongs to the new one (same customer only)
+        S.payments.forEach((p) => { if (p.docId === data.replaces && p.partyId === data.partyId) p.docId = doc.id; });
       }
       list.push(doc);
       if (+data.paidNow > 0) {
         A.savePayment(isC ? 'in' : 'out', { ...data.payment, partyId: data.partyId, amount: +data.paidNow, date: data.date, docId: doc.id }, { silent: true });
       }
-      audit(data.replaces ? 'correct' : 'create', (isC ? 'INV-' : 'SR-') + doc.no, isC ? 'Sale invoice' : 'Stock receipt');
+      audit(data.replaces ? 'correct' : 'create', (isC ? 'INV-' : 'SR-') + doc.no, (isC ? 'Sale invoice' : 'Stock receipt') + (data.replaces ? ' — ' + (data.reason || '') : ''));
       emit();
       return doc;
     },
     isDuplicateDoc(kind, data) {
       const t = lineTotal(data.lines);
-      return recentDuplicate(docsFor(kind), (d) => docParty(d) === data.partyId && total(d) === t);
+      return recentDuplicate(docsFor(kind), (d) => docParty(d) === data.partyId && total(d) === t && active(d));
     },
     cancelDoc(kind, id, reason) {
       const d = byId(docsFor(kind), id); if (!d || !active(d)) return;
@@ -407,68 +519,127 @@
       emit();
     },
     savePayment(dir, data, opts = {}) {
+      const old = data.replaces ? byId(S.payments, data.replaces) : null;
       const p = {
-        id: uid(), no: ++S.counters[dir], dir, date: data.date || today(), time: data.time || nowTime(), seq: nextSeq(), partyId: data.partyId,
+        id: uid() + uid(), no: ++S.counters[dir], dir, date: data.date || today(), time: data.time || nowTime(), seq: nextSeq(), partyId: data.partyId,
         amount: round(+data.amount), method: data.method || 'cash', ref: data.ref || '', fromAcc: data.fromAcc || '', toAcc: data.toAcc || '',
-        handledBy: data.handledBy || '', onBehalf: data.onBehalf || '', note: data.note || '', docId: data.docId || null, status: 'active', _ts: Date.now(),
+        handledBy: data.handledBy || '', onBehalf: data.onBehalf || '', note: data.note || '', docId: data.docId || (old && old.partyId === data.partyId ? old.docId : null) || null, status: 'active', _ts: Date.now(),
       };
+      if (old) {
+        if (active(old)) { old.status = 'cancelled'; old.cancelDate = today(); old.cancelReason = (data.reason || 'Corrected') + ' → ' + payRef(p); old.replacedBy = p.id; }
+        p.replaces = old.id;
+      }
       S.payments.push(p);
-      audit('create', (dir === 'in' ? 'RC-' : 'VP-') + p.no, dir === 'in' ? 'Recovery' : 'Vendor payment');
+      audit(old ? 'correct' : 'create', payRef(p), (dir === 'in' ? 'Recovery' : 'Vendor payment') + (old ? ' — ' + (data.reason || '') : ''));
       if (!opts.silent) emit();
       return p;
     },
     isDuplicatePayment(dir, data) {
-      return recentDuplicate(S.payments, (p) => p.dir === dir && p.partyId === data.partyId && p.amount === round(+data.amount));
+      return recentDuplicate(S.payments, (p) => p.dir === dir && p.partyId === data.partyId && p.amount === round(+data.amount) && active(p));
     },
     cancelPayment(id, reason) {
       const p = byId(S.payments, id); if (!p || !active(p)) return;
       p.status = 'cancelled'; p.cancelDate = today(); p.cancelReason = reason;
-      audit('cancel', (p.dir === 'in' ? 'RC-' : 'VP-') + p.no, reason); emit();
+      audit('cancel', payRef(p), reason); emit();
     },
     saveExpense(data) {
-      const e = { id: uid(), no: ++S.counters.expense, date: data.date, time: nowTime(), categoryId: data.categoryId, amount: round(+data.amount), method: data.method || 'cash', desc: data.desc || '', status: 'active' };
-      S.expenses.push(e); audit('create', 'EXP-' + e.no, 'Expense'); emit(); return e;
+      const e = { id: uid() + uid(), no: ++S.counters.expense, date: data.date, time: nowTime(), categoryId: data.categoryId, amount: round(+data.amount), method: data.method || 'cash', desc: data.desc || '', status: 'active' };
+      const old = data.replaces ? byId(S.expenses, data.replaces) : null;
+      if (old) {
+        if (active(old)) { old.status = 'cancelled'; old.cancelDate = today(); old.cancelReason = (data.reason || 'Corrected') + ' → EXP-' + e.no; old.replacedBy = e.id; }
+        e.replaces = old.id;
+      }
+      S.expenses.push(e); audit(old ? 'correct' : 'create', 'EXP-' + e.no, 'Expense' + (old ? ' — ' + (data.reason || '') : '')); emit(); return e;
     },
-    cancelExpense(id, reason) { const e = byId(S.expenses, id); if (!e) return; e.status = 'cancelled'; e.cancelReason = reason; audit('cancel', 'EXP-' + e.no, reason); emit(); },
+    cancelExpense(id, reason) { const e = byId(S.expenses, id); if (!e || !active(e)) return; e.status = 'cancelled'; e.cancelDate = today(); e.cancelReason = reason; audit('cancel', 'EXP-' + e.no, reason); emit(); },
     saveAdjustment(data) {
-      const a = { id: uid(), date: data.date, time: nowTime(), seq: nextSeq(), itemId: data.itemId, qty: r2(+data.qty), reason: data.reason };
-      S.adjustments.push(a); audit('create', 'ADJ', 'Stock correction: ' + data.reason); emit(); return a;
+      const a = { id: uid() + uid(), date: data.date, time: nowTime(), seq: nextSeq(), itemId: data.itemId, qty: r2(+data.qty), reason: data.reason, status: 'active' };
+      S.adjustments.push(a); audit('create', 'ADJ', 'Stock correction: ' + data.reason + ' (' + (a.qty > 0 ? '+' : '') + a.qty + ')'); emit(); return a;
+    },
+    cancelAdjustment(id, reason) {
+      const a = byId(S.adjustments, id); if (!a || !active(a)) return;
+      a.status = 'cancelled'; a.cancelDate = today(); a.cancelReason = reason;
+      audit('cancel', 'ADJ', 'Stock correction cancelled: ' + reason); emit();
     },
     saveParty(kind, data) {
       const list = kind === 'customer' ? S.customers : S.vendors;
-      if (data.id) { Object.assign(byId(list, data.id), data); audit('update', data.code, kind); }
-      else {
-        const n = list.length + 1;
-        const p = { ...data, id: uid(), code: (kind === 'customer' ? 'C-' : 'V-') + String(n).padStart(3, '0'), active: true, opening: +data.opening || 0 };
-        list.push(p); audit('create', p.code, kind); emit(); return p;
+      if (data.id) {
+        const p = byId(list, data.id); const before = p.opening;
+        Object.assign(p, data);
+        audit('update', p.code, kind + (+before !== +p.opening ? ' — opening balance ' + before + ' → ' + p.opening : ''));
+        emit(); return p;
       }
-      emit();
+      const used = new Set(list.map((x) => x.code)); let n = list.length + 1; let code;
+      do { code = (kind === 'customer' ? 'C-' : 'V-') + String(n++).padStart(3, '0'); } while (used.has(code));
+      const p = { ...data, id: uid() + uid(), code, active: true, opening: +data.opening || 0 };
+      list.push(p); audit('create', p.code, kind); emit(); return p;
     },
     saveItem(data) {
-      if (data.id) Object.assign(item(data.id), data); else S.items.push({ ...data, id: uid(), active: true });
-      audit(data.id ? 'update' : 'create', 'ITEM', data.name_en || data.name_ur); emit();
+      let it;
+      if (data.id) { it = item(data.id); Object.assign(it, data); } else { it = { ...data, id: uid() + uid(), active: true }; S.items.push(it); }
+      audit(data.id ? 'update' : 'create', 'ITEM', data.name_en || data.name_ur); emit(); return it;
     },
-    saveCategory(data) { if (data.id) Object.assign(category(data.id), data); else S.categories.push({ ...data, id: uid(), active: true }); emit(); },
-    saveMethod(data) { if (data.id) Object.assign(method(data.id), data); else S.methods.push({ ...data, id: uid(), active: true }); emit(); },
+    saveCategory(data) { let c; if (data.id) { c = category(data.id); Object.assign(c, data); } else { c = { ...data, id: uid() + uid(), active: true }; S.categories.push(c); } emit(); return c; },
+    saveMethod(data) { let m; if (data.id) { m = byId(S.methods, data.id); Object.assign(m, data); } else { m = { ...data, id: uid() + uid(), active: true }; S.methods.push(m); } emit(); return m; },
     setSettings(path, value) {
       const parts = path.split('.'); let o = S.settings; parts.slice(0, -1).forEach((k) => (o = o[k]));
       o[parts[parts.length - 1]] = value; emit();
     },
     resetPrint() { S.settings.print = defaultPrint(); emit(); },
+    logLogin() { audit('login', '', 'Owner logged in'); emit(); },
+
+    /* password */
+    checkPassword(pw) { return DESK ? !!PM.checkPassword(pw) : pw === S.settings.password; },
+    changePassword(oldPw, newPw) {
+      if (DESK) { const r = PM.setPassword(oldPw, newPw); if (r.ok) { audit('update', '', 'Password changed'); emit(); } return r; }
+      if (oldPw !== S.settings.password) return { ok: false, error: 'wrong' };
+      S.settings.password = newPw; emit(); return { ok: true };
+    },
+    defaultPassword() { return DESK ? PM.authInfo().isDefault : true; },
+
+    /* backups */
+    backupHistory() {
+      if (!DESK) return S.settings.backup.history;
+      if (!backupLogCache) { try { backupLogCache = PM.backupLog(); } catch (e) { backupLogCache = []; } }
+      return backupLogCache;
+    },
     recordBackup(entry) { S.settings.backup.history.unshift({ id: uid(), at: today() + ' ' + nowTime(), ok: true, ...entry }); audit('backup', '', entry.kind); emit(); },
+    async backupNow(kind, note) {
+      const e = await PM.backupNow(kind || 'manual', note || '');
+      backupLogCache = null; audit('backup', e.file || '', (e.ok ? 'OK ' : 'FAILED ') + (e.kind || '') + (e.error ? ': ' + e.error : '')); emit();
+      return e;
+    },
     exportData() { return JSON.stringify({ app: 'PoultryManager', exportedAt: new Date().toISOString(), data: S }, null, 1); },
     importData(text) {
       const o = JSON.parse(text); const d = o && o.data;
       if (!d || d.version !== 1 || !Array.isArray(d.invoices)) throw new Error('Not a Poultry Manager backup');
-      S = d; audit('restore', '', 'Data restored from backup'); emit();
+      replaceState(d); audit('restore', '', 'Data restored from backup'); emit();
     },
-    resetDemo() { S = seed(); emit(); },
+    resetDemo() { replaceState(seed()); },
+    // desktop: a safety backup is always taken first, so either can be undone with Restore
+    async loadSample() {
+      const keepFolder = S.settings.backup.folder; const safe = await A.backupNow('safety', 'Before loading sample data');
+      if (!safe.ok) throw new Error(safe.error || 'Safety backup failed');
+      const st = seed(); st.settings.backup = { ...st.settings.backup, folder: keepFolder, history: [] }; st.settings.sample = true; delete st.settings.password;
+      replaceState(st); audit('restore', '', 'Sample data loaded'); emit();
+    },
+    async eraseAll() {
+      const wasSample = !!S.settings.sample;
+      const keep = { shop: S.settings.shop, print: S.settings.print, backup: S.settings.backup, accounts: S.settings.accounts, theme: S.settings.theme };
+      const safe = await A.backupNow('safety', 'Before erasing all data');
+      if (!safe.ok) throw new Error(safe.error || 'Safety backup failed');
+      const st = blank(); Object.assign(st.settings, keep);
+      if (wasSample) { st.settings.shop = blank().settings.shop; st.settings.accounts = []; } // sample shop name is made up
+      replaceState(st); audit('restore', '', 'All data erased — fresh start'); emit();
+    },
   };
+  if (DESK && PM.onBackup) PM.onBackup(() => { backupLogCache = null; cache = {}; listeners.forEach((f) => f()); });
 
   window.Store = {
     get s() { return S; },
     subscribe: (f) => (listeners.add(f), () => listeners.delete(f)),
-    today, nowTime, addDays, dow, lineTotal, uid,
+    desktop: DESK, get info() { return INFO; },
+    today, nowTime, addDays, dow, lineTotal, uid, photoSrc,
     item, party, partyOf, method, category, total, active, docParty,
     stockOf, stockCard, avgCost, balance, ledger, docStatus, summary, creditList,
     ...A,

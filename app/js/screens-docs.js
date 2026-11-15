@@ -100,7 +100,7 @@
       toast(tf(isC ? 'Invoice {no} saved' : 'Stock receipt {no} saved', { no: Util.docNo(kind, doc) }), 'success');
       if (andPrint) setPreview(doc); else nav(M.route + '-view', { id: doc.id });
     }
-    const onPhoto = (e) => { const file = e.target.files[0]; if (!file) return; const r = new FileReader(); r.onload = () => set('photo', r.result); r.readAsDataURL(file); };
+    const onPhoto = (e) => { const file = e.target.files[0]; if (!file) return; Util.readImage(file).then((d) => set('photo', d)); };
 
     return html`<${Page} title=${old ? tf('Correct {no}', { no: Util.docNo(kind, old) }) : t(M.newLabel)} icon=${M.icon}
       actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}>`}>
@@ -114,7 +114,7 @@
               <${Field} label=${t('Date')}><${DateInp} value=${f.date} onChange=${(v) => set('date', v)} /></${Field}>
               ${!isC && html`<${Field} label=${t("Vendor's bill no.")} hint=${t('Number written on their bill')}><input class="inp num" value=${f.vendorBillNo} onInput=${(e) => set('vendorBillNo', e.target.value)} /></${Field}>`}
               ${!isC && html`<${Field} label=${t('Vehicle / driver')}><input class="inp" value=${f.vehicle} onInput=${(e) => set('vehicle', e.target.value)} /></${Field}>`}
-              ${!isC && html`<${Field} label=${t("Photo of vendor's bill")} hint=${t('Optional')}><div class="photo-row"><input type="file" accept="image/*" onChange=${onPhoto} />${f.photo && html`<img class="thumb" src=${f.photo} />`}</div></${Field}>`}
+              ${!isC && html`<${Field} label=${t("Photo of vendor's bill")} hint=${t('Optional')}><div class="photo-row"><input type="file" accept="image/*" onChange=${onPhoto} />${f.photo && html`<img class="thumb" src=${Store.photoSrc(f.photo)} />`}</div></${Field}>`}
             </div>
             ${farm && html`<div class="alert alert-teal"><${Ico} n="house-heart" /> ${t('Own farm: enter quantity only. No rate and no payable.')}</div>`}
           </${Card}>
@@ -185,7 +185,7 @@
         <${Card} title=${t(M.partyLabel)} actions=${html`<${Btn} kind="ghost" size="sm" icon="journal-text" onClick=${() => nav(isC ? 'customer' : 'vendor', { id: p.id })}>${t('Open ledger')}</${Btn}>`}>
           <div class="party-line"><b class="lg">${nm(p)}</b> <span class="muted num">${p.code} · ${p.phone || ''}</span>
             ${d.vendorBillNo && html`<div class="muted">${t("Vendor's bill no.")}: <b class="num">${d.vendorBillNo}</b></div>`}${d.vehicle && html`<div class="muted">${t('Vehicle / driver')}: ${d.vehicle}</div>`}</div>
-          ${d.photo && html`<img class="bill-photo" src=${d.photo} />`}
+          ${d.photo && html`<img class="bill-photo" src=${Store.photoSrc(d.photo)} />`}
         </${Card}>
         <${Card} title=${t('Items')} pad=${false}>
           <${Table} columns=${[

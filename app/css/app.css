@@ -250,3 +250,4 @@ textarea.inp{padding:8px 11px}
   .menu-btn{display:inline-grid}.tb-date{display:none}
   .main{padding:14px}.grid-2,.payf,.settings,.name-pair{grid-template-columns:1fr}.tiles{grid-template-columns:repeat(2,1fr)}
 }
+.nowrap{white-space:nowrap}

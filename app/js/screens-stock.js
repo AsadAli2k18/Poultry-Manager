@@ -1,7 +1,7 @@
 /* Stock overview, stock card per item, corrections, and the items list. */
 (function () {
   'use strict';
-  const { html, useState, useStore, Ico, Num, Qty, D, Btn, Field, Badge, toast, Modal, Page, Card, Table, Seg, DateInp, ItemSelect, NameFields, Kpi } = UI;
+  const { html, useState, useStore, Ico, Num, Qty, D, Btn, Field, Badge, toast, ask, Modal, Page, Card, Table, Seg, DateInp, ItemSelect, NameFields, Kpi } = UI;
   const { t, tf, nm, money, qty } = I18N;
   const nav = (...a) => App.nav(...a);
   const REASONS = ['Mortality', 'Weight loss', 'Count correction', 'Damaged / spoiled', 'Other'];
@@ -11,6 +11,10 @@
     const [adj, setAdj] = useState(null);
     const today = Store.today();
     const items = s.items.filter((i) => i.active);
+    const cancelAdj = async (a) => {
+      const reason = await ask({ title: t('Cancel this correction?'), body: t('The stock goes back to what it was before this correction. The entry stays on record as cancelled.'), input: t('Reason'), inputReq: true, danger: true, okLabel: t('Cancel entry') });
+      if (reason) { Store.cancelAdjustment(a.id, reason); toast(t('Entry cancelled'), 'success'); }
+    };
     const moved = (it, list, sign) => list.filter((d) => Store.active(d) && d.date === today).reduce((a, d) => a + d.lines.filter((l) => l.itemId === it.id).reduce((b, l) => b + +l.qty, 0), 0);
     return html`<${Page} title=${t('Stock')} icon="box-seam" actions=${html`<${Btn} icon="sliders" onClick=${() => setAdj({})}>${t('Stock correction')}</${Btn}>
         <${Btn} kind="primary" size="lg" icon="truck" onClick=${() => nav('receipts-new')}>${t('New stock receipt')}</${Btn}>`}>
@@ -24,9 +28,10 @@
           ${q < 0 && html`<div class="tx-red small"><${Ico} n="exclamation-triangle" /> ${t('Below zero — check entries or add a correction')}</div>`}</div>`;
       })}</div>
       <${Card} title=${t('Recent corrections')} pad=${false}>
-        <${Table} limit=${15} rows=${s.adjustments.slice().sort((a, b) => b.date.localeCompare(a.date))} columns=${[
+        <${Table} limit=${15} rows=${s.adjustments.slice().sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time))} rowCls=${(a) => (Store.active(a) ? '' : 'row-cancel')} empty=${t('No corrections yet')} columns=${[
           { label: t('Date'), render: (a) => html`<${D} v=${a.date} />` }, { label: t('Item'), render: (a) => nm(Store.item(a.itemId)) },
-          { label: t('Quantity'), num: true, render: (a) => html`<b class=${'num ' + (a.qty < 0 ? 'tx-debit' : 'tx-credit')}>${a.qty > 0 ? '+' : ''}${qty(a.qty)}</b>` }, { label: t('Reason'), render: (a) => t(a.reason) }]} />
+          { label: t('Quantity'), num: true, render: (a) => html`<b class=${'num ' + (a.qty < 0 ? 'tx-debit' : 'tx-credit')}>${a.qty > 0 ? '+' : ''}${qty(a.qty)}</b>` }, { label: t('Reason'), render: (a) => html`${t(a.reason)}${!Store.active(a) ? html`<div class="muted small">${t('Cancelled')}: ${a.cancelReason}</div>` : ''}` },
+          { label: '', render: (a) => (Store.active(a) ? html`<button class="icon-btn" title=${t('Cancel entry')} onClick=${() => cancelAdj(a)}><${Ico} n="x-circle" /></button>` : html`<${Badge} s="cancelled" />`) }]} />
       </${Card}>
       ${adj && html`<${AdjForm} itemId=${adj.itemId} onClose=${() => setAdj(null)} />`}
     </${Page}>`;
@@ -44,7 +49,7 @@
         <${Kpi} icon="tag" tone="yellow" label=${t('Selling rate')} value=${money(it.rate)} />${Store.avgCost(id) != null && html`<${Kpi} icon="calculator" tone="brand" label=${t('Average cost')} value=${money(Store.avgCost(id))} />`}</div>
       <${Card} pad=${false}><${Table} limit=${80} rows=${rows} rowCls=${(r) => (r.cancelled ? 'row-cancel' : '')} columns=${[
         { label: t('Date'), render: (r) => html`<${D} v=${r.date} /> <small class="muted num">${r.time}</small>` },
-        { label: t('Details'), render: (r) => r.type === 'adj' ? html`<span>${t('Correction')} — ${t(r.adj.reason)}</span>` : html`<a onClick=${() => nav(r.type === 'in' ? 'receipts-view' : 'sales-view', { id: r.doc.id })}>${r.type === 'in' ? t('Stock receipt') + ' SR-' + r.doc.no : t('Sale invoice') + ' #' + r.doc.no}</a> · ${nm(Store.partyOf(Store.docParty(r.doc)))}${r.cancelled ? html` <${Badge} s="cancelled" />` : ''}` },
+        { label: t('Details'), render: (r) => r.type === 'adj' ? html`<span>${t('Correction')} — ${t(r.adj.reason)}${r.cancelled ? html` <${Badge} s="cancelled" />` : ''}</span>` : html`<a onClick=${() => nav(r.type === 'in' ? 'receipts-view' : 'sales-view', { id: r.doc.id })}>${r.type === 'in' ? t('Stock receipt') + ' SR-' + r.doc.no : t('Sale invoice') + ' #' + r.doc.no}</a> · ${nm(Store.partyOf(Store.docParty(r.doc)))}${r.cancelled ? html` <${Badge} s="cancelled" />` : ''}` },
         { label: t('In'), num: true, render: (r) => (r.qty > 0 ? html`<b class="num tx-credit">${qty(r.qty)}</b>` : '') },
         { label: t('Out'), num: true, render: (r) => (r.qty < 0 ? html`<b class="num tx-debit">${qty(-r.qty)}</b>` : '') },
         { label: t('Balance'), num: true, render: (r) => html`<b class="num">${qty(r.balance)}</b>` }]} /></${Card}>
