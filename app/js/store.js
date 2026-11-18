@@ -22,7 +22,7 @@
   const dow = (iso) => new Date(iso + 'T00:00:00Z').getUTCDay();
   const round = (n) => Math.round(n);
   const r2 = (n) => Math.round(n * 100) / 100;
-  const sortKey = (o) => (o.date || '') + ' ' + (o.time || '00:00') + ' ' + String(o.seq || 0).padStart(6, '0');
+  const sortKey = (o) => (o.date || '') + ' ' + (o.time || '00:00') + ' ' + (+o.seq || 0).toFixed(2).padStart(12, '0'); // seq may be fractional (x.5)
   const lineTotal = (lines) => round((lines || []).reduce((s, l) => s + (+l.qty || 0) * (+l.rate || 0), 0));
 
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -228,7 +228,11 @@
   function defaultPrint() {
     const base = { template: 'classic', paper: 'A5', lang: 'ur', font: 'm', accent: '#B4141F', showLogo: false,
       showBillNo: true, showRate: true, showPrev: true, showReceived: true, showNewBal: true, showPayDetails: true, showSignature: true,
-      footer_ur: 'شکریہ! دوبارہ تشریف لائیں', footer_en: 'Thank you for your business' };
+      footer_ur: 'شکریہ! دوبارہ تشریف لائیں', footer_en: 'Thank you for your business',
+      // thermal receipt (paper T80 / T58) and shared options
+      showBalance: true, design: 'standard', showShopName: true, showAddress: true, showOwners: true, headerNote_ur: '', headerNote_en: '',
+      colItem: true, colQty: true, colRate: true, colAmount: true, lineStyle: 'auto', bold: true,
+      billPrefix: '', dateFmt: 'd/m/yy', timeFmt: '24h', note_ur: '', note_en: '', printer: '', silent: false };
     return {
       sale: { ...base },
       receipt: { ...base, template: 'modern', paper: 'A5', accent: '#0E7C74', footer_ur: 'مال وصول کیا', footer_en: 'Goods received' },
@@ -250,7 +254,8 @@
     st.counters = { invoice: 0, receipt: 0, in: 0, out: 0, expense: 0, ...(st.counters || {}) };
     st.settings.backup = { ...defaultBackup(), ...(st.settings.backup || {}) };
     if (!st.settings.backup.folder) st.settings.backup.folder = INFO.defaultBackupFolder || '';
-    st.settings.print = { ...defaultPrint(), ...(st.settings.print || {}) };
+    const dp = defaultPrint(); const sp = st.settings.print || {};
+    st.settings.print = {}; Object.keys(dp).forEach((k) => (st.settings.print[k] = { ...dp[k], ...(sp[k] || {}) }));
     st.adjustments.forEach((a) => { if (!a.status) a.status = 'active'; });
     if (DESK) { delete st.settings.password; st.settings.backup.history = []; }
     return st;
@@ -361,18 +366,41 @@
     S.payments.forEach((p2) => { if (p2.partyId === id && p2.dir === dirFor(kind) && active(p2) && ok(p2)) b -= p2.amount; });
     return round(b);
   }
+  // Where a cancellation sits in the ledger: a corrected entry is reversed just before its replacement;
+  // a plain cancel at the time it was made (older records without a time: end of that day).
+  function cancelAt(o, list) {
+    const rep = o.replacedBy && byId(list, o.replacedBy);
+    if (rep) return { date: rep.date, time: rep.time, seq: rep.seq - 0.5 };
+    return { date: o.cancelDate || o.date, time: o.cancelTime || '23:59', seq: o.cancelSeq != null ? o.cancelSeq : o.seq + 0.5 };
+  }
+  /* Balance figures for one bill, taken from the party's ledger as of that bill (reprints show the balance then, not today's).
+   * prev = balance before the bill, total = bill, received = payments taken with it, after = prev + total - received. */
+  function billBalance(kind, doc) {
+    const lg = ledger(kind, docParty(doc));
+    const tot = total(doc);
+    const linked = S.payments.filter((p) => p.docId === doc.id && p.dir === dirFor(kind) && active(p));
+    const received = round(linked.reduce((s, p) => s + p.amount, 0));
+    const idx = lg.rows.findIndex((r) => r.kind === 'doc' && r.doc.id === doc.id);
+    if (idx < 0) return { prev: lg.closing, total: tot, received, after: round(lg.closing + tot - received) };
+    const row = lg.rows[idx];
+    let prev = row.balance - row.debit + row.credit;
+    // a payment the ledger lists before this bill (a corrected bill keeps the original's payment) is not yet in "previous"
+    linked.forEach((p) => { const i = lg.rows.findIndex((r) => r.kind === 'pay' && r.pay.id === p.id); if (i >= 0 && i < idx) prev += p.amount; });
+    prev = round(prev);
+    return { prev, total: tot, received, after: round(prev + tot - received) };
+  }
   function ledger(kind, id, from, to) {
     const p = party(kind, id);
     const ev = [];
     docsFor(kind).forEach((d) => {
       if (docParty(d) !== id) return;
       ev.push({ kind: 'doc', date: d.date, time: d.time, seq: d.seq, doc: d, debit: total(d), credit: 0 });
-      if (!active(d)) ev.push({ kind: 'docCancel', date: d.cancelDate || d.date, time: '23:59', seq: d.seq + 0.5, doc: d, debit: 0, credit: total(d) });
+      if (!active(d)) ev.push({ kind: 'docCancel', ...cancelAt(d, docsFor(kind)), doc: d, debit: 0, credit: total(d) });
     });
     S.payments.forEach((x) => {
       if (x.partyId !== id || x.dir !== dirFor(kind)) return;
       ev.push({ kind: 'pay', date: x.date, time: x.time, seq: x.seq, pay: x, debit: 0, credit: x.amount });
-      if (!active(x)) ev.push({ kind: 'payCancel', date: x.cancelDate || x.date, time: '23:59', seq: x.seq + 0.5, pay: x, debit: x.amount, credit: 0 });
+      if (!active(x)) ev.push({ kind: 'payCancel', ...cancelAt(x, S.payments), pay: x, debit: x.amount, credit: 0 });
     });
     ev.sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : 1));
     let run = +p.opening || 0; let opening = run; const rows = [];
@@ -462,7 +490,7 @@
     S.audit.unshift(e);
     if (DESK) newAudit.push(e); else if (S.audit.length > 500) S.audit.length = 500;
   }
-  const nextSeq = () => { let m = 0; ['invoices', 'receipts', 'payments', 'adjustments'].forEach((k) => S[k].forEach((x) => { if ((x.seq || 0) > m) m = x.seq; })); return Math.floor(m) + 1; };
+  const nextSeq = () => { let m = 0; ['invoices', 'receipts', 'payments', 'adjustments'].forEach((k) => S[k].forEach((x) => { if ((x.seq || 0) > m) m = x.seq; if ((x.cancelSeq || 0) > m) m = x.cancelSeq; })); return Math.floor(m) + 1; };
   // Shrinks a photo before it is stored (bills are photographed with phones: several MB each)
   function storePhoto(data) {
     if (!data || !DESK || !String(data).startsWith('data:')) return data || '';
@@ -514,7 +542,7 @@
     },
     cancelDoc(kind, id, reason) {
       const d = byId(docsFor(kind), id); if (!d || !active(d)) return;
-      d.status = 'cancelled'; d.cancelDate = today(); d.cancelReason = reason;
+      d.status = 'cancelled'; d.cancelDate = today(); d.cancelTime = nowTime(); d.cancelSeq = nextSeq(); d.cancelReason = reason;
       audit('cancel', (kind === 'customer' ? 'INV-' : 'SR-') + d.no, reason);
       emit();
     },
@@ -539,7 +567,7 @@
     },
     cancelPayment(id, reason) {
       const p = byId(S.payments, id); if (!p || !active(p)) return;
-      p.status = 'cancelled'; p.cancelDate = today(); p.cancelReason = reason;
+      p.status = 'cancelled'; p.cancelDate = today(); p.cancelTime = nowTime(); p.cancelSeq = nextSeq(); p.cancelReason = reason;
       audit('cancel', payRef(p), reason); emit();
     },
     saveExpense(data) {
@@ -641,7 +669,7 @@
     desktop: DESK, get info() { return INFO; },
     today, nowTime, addDays, dow, lineTotal, uid, photoSrc,
     item, party, partyOf, method, category, total, active, docParty,
-    stockOf, stockCard, avgCost, balance, ledger, docStatus, summary, creditList,
+    stockOf, stockCard, avgCost, balance, ledger, billBalance, docStatus, summary, creditList,
     ...A,
   };
 })();

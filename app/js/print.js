@@ -5,8 +5,30 @@
   'use strict';
   const { money, qty, dmy } = I18N;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const PAPER = { A4: { w: 210, h: 297 }, A5: { w: 148, h: 210 }, A6: { w: 105, h: 148 } };
-  const FONT = { s: 10.5, m: 12, l: 13.5 };
+  // T80 / T58: thermal receipt rolls. content = printable width (the print head is narrower than the roll).
+  const PAPER = { A4: { w: 210, h: 297 }, A5: { w: 148, h: 210 }, A6: { w: 105, h: 148 }, T80: { w: 80, content: 72, thermal: true }, T58: { w: 58, content: 48, thermal: true } };
+  const FONT = { s: 10.5, m: 12, l: 13.5, xl: 15 };
+  const TFONT = { s: 11.5, m: 13, l: 14.5, xl: 16 }; // px on thermal paper: 13px is about 10pt, readable at 203 dpi
+  const kgf = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const kg2 = (n) => kgf.format(+n || 0); // KG always with 2 decimals on the thermal bill
+  const isThermal = (paper) => !!(PAPER[paper] && PAPER[paper].thermal);
+  const pxOf = (mm) => Math.round(mm * 96 / 25.4);
+  const MON = { en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    ur: ['جنوری', 'فروری', 'مارچ', 'اپریل', 'مئی', 'جون', 'جولائی', 'اگست', 'ستمبر', 'اکتوبر', 'نومبر', 'دسمبر'] };
+  function fmtDate(iso, fmt, lang) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    if (fmt === 'dd/mm/yyyy') return d + '/' + m + '/' + y;
+    if (fmt === 'dd-mm-yyyy') return d + '-' + m + '-' + y;
+    if (fmt === 'd mon yyyy') return +d + ' ' + MON[lang === 'en' ? 'en' : 'ur'][+m - 1] + ' ' + y;
+    return dmy(iso);
+  }
+  function fmtTime(tm, fmt) {
+    if (!tm || fmt === 'off') return '';
+    if (fmt !== '12h') return tm;
+    const [h, mi] = tm.split(':').map(Number);
+    return ((h % 12) || 12) + ':' + String(mi).padStart(2, '0') + (h < 12 ? ' AM' : ' PM');
+  }
 
   function L(cfg) {
     const ur = (s) => I18N.tr(s, 'ur');
@@ -126,12 +148,13 @@ tfoot td{font-weight:700;border-top:2px solid #333;background:#f2f2f2}
       <tbody>${rows}</tbody><tfoot><tr><td></td><td>${t('Total')}</td><td class="r num">${qty(totQty)}</td>${showRate ? `<td></td><td class="r num">${money(Store.total(doc))}</td>` : ''}</tr></tfoot></table>`;
   }
   function saleInvoice(doc, cfg) {
+    if (isThermal(cfg.paper)) return thermalSale(doc, cfg);
     const t = L(cfg); const c = Store.party('customer', doc.customerId);
     const tot = Store.total(doc);
     const linked = Store.s.payments.filter((p) => p.docId === doc.id && Store.active(p));
-    const received = linked.reduce((s, p) => s + p.amount, 0);
-    const pos = positionIn('customer', doc.customerId, (r) => r.kind === 'doc' && r.doc.id === doc.id);
-    const prev = pos.prev; const newBal = prev + tot - received;
+    const bb = Store.billBalance('customer', doc); // same figures as the customer ledger, as of this bill
+    const prev = bb.prev; const received = bb.received; const newBal = bb.after;
+    if (cfg.showBalance === false) cfg = { ...cfg, showPrev: false, showReceived: false, showNewBal: false };
     let body = header(cfg, 'Sale Invoice');
     body += `<div class="meta">${cfg.showBillNo ? `<div><span class="k">${t('Bill No.')}:</span> <b class="num">${doc.no}</b></div>` : '<div></div>'}
       <div><span class="k">${t('Date')}:</span> <span class="num">${dmy(doc.date)} ${esc(doc.time || '')}</span></div>
@@ -145,6 +168,119 @@ tfoot td{font-weight:700;border-top:2px solid #333;background:#f2f2f2}
     if (cfg.showPayDetails && linked.length) body += linked.map((p) => payBlock(cfg, p)).join('');
     if (doc.note) body += `<div class="muted" style="margin-top:4px">${t('Note')}: ${esc(doc.note)}</div>`;
     return wrap(cfg, body + foot(cfg));
+  }
+
+  /* ---------- thermal receipt (80 mm / 58 mm roll) ---------- */
+  function thermalCss(cfg) {
+    const P = PAPER[cfg.paper]; const f = TFONT[cfg.font] || 13; const rtl = cfg.lang !== 'en';
+    const boxed = cfg.design === 'boxed';
+    const w = cfg.bold ? 700 : 400;
+    return `/*THERMAL:${P.w}*/
+@page{size:${P.w}mm 297mm;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#fff;color:#000;width:${P.w}mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{direction:${rtl ? 'rtl' : 'ltr'};font-size:${f}px;line-height:${rtl ? 1.85 : 1.3};font-weight:${w};font-family:${rtl ? "'Noto Nastaliq Urdu','Segoe UI',sans-serif" : "'Segoe UI',Arial,sans-serif"}}
+.rc{width:${P.content}mm;margin:0 auto;padding:2mm 0 6mm;overflow:hidden;text-align:${rtl ? 'right' : 'left'}}
+.num{font-family:'Segoe UI',Arial,sans-serif;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;white-space:nowrap}
+.en{font-family:'Segoe UI',Arial,sans-serif;font-size:.8em;direction:ltr;unicode-bidi:isolate}
+b,.b{font-weight:700}
+.c{text-align:center}
+.hd{text-align:center;padding-bottom:1mm}
+.hd img{max-width:60%;max-height:${cfg.paper === 'T58' ? 14 : 18}mm;display:block;margin:0 auto 1mm}
+.sname{font-size:1.55em;font-weight:700;line-height:${rtl ? 1.7 : 1.2}}
+.ssub{font-size:1.05em;font-weight:700}
+.small{font-size:.88em}
+.owners{display:flex;flex-wrap:wrap;justify-content:center;gap:0 3mm;font-size:.9em}
+.hnote{font-size:.9em;margin-top:.5mm}
+.title{text-align:center;font-weight:700;margin:1mm 0;${boxed ? 'background:#000;color:#fff;padding:.3mm 0' : 'font-size:1.1em'}}
+.sep{border-top:1px dashed #000;margin:1.2mm 0}
+.sep2{border-top:2px solid #000;margin:1.2mm 0}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:2mm}
+.kv>span:first-child{flex:1 1 auto;min-width:0}
+.kv>:last-child{flex:0 0 auto}
+table{width:100%;border-collapse:collapse}
+th{font-weight:700;text-align:${rtl ? 'right' : 'left'};border-bottom:1px solid #000;padding:0 .8mm .3mm;font-size:.92em;white-space:nowrap}
+td{padding:.2mm .6mm;vertical-align:top}
+tr,.blk{break-inside:avoid;page-break-inside:avoid}
+th.r,td.r{text-align:${rtl ? 'left' : 'right'}}
+td.it{word-break:break-word;width:100%}
+.ln{padding:.4mm 0;border-bottom:1px dotted #000}
+.ln:last-child{border-bottom:0}
+.ln .calc{display:flex;justify-content:space-between;gap:2mm;font-size:.95em}
+.big{font-size:1.2em;font-weight:700}
+.bal{${boxed ? 'border:1.5px solid #000;padding:.6mm 1.2mm' : ''}}
+.bal .now{${boxed ? 'background:#000;color:#fff;margin:.6mm -1.2mm -.6mm;padding:.4mm 1.2mm' : 'border-top:1px solid #000;padding-top:.4mm'};font-size:1.15em;font-weight:700}
+.stamp{display:inline-block;border:2px solid #000;padding:0 2mm;font-weight:700;margin:1mm 0}
+.foot{text-align:center}
+.foot .ty{font-weight:700;font-size:1.05em}
+`;
+  }
+  const pick = (cfg, ur, en) => (cfg.lang === 'en' ? en || ur : cfg.lang === 'ur' ? ur || en : [ur, en].filter(Boolean).join(' / '));
+  function thermalHeader(cfg) {
+    const s = Store.s.settings.shop;
+    let h = '<div class="hd">';
+    if (cfg.showLogo && s.logo) h += `<img src="${esc(s.logo)}">`;
+    if (cfg.showShopName !== false) {
+      h += `<div class="sname">${esc(cfg.lang === 'en' ? s.name_en || s.name_ur : s.name_ur || s.name_en)}</div>`;
+      const sub = cfg.lang === 'en' ? s.sub_en : s.sub_ur; if (sub) h += `<div class="ssub">${esc(sub)}</div>`;
+    }
+    if (cfg.showAddress !== false) { const a = cfg.lang === 'en' ? s.addr_en || s.addr_ur : s.addr_ur || s.addr_en; if (a) h += `<div class="small">${esc(a)}</div>`; }
+    if (cfg.showOwners !== false) {
+      const os = (s.owners || []).filter((o) => o.name_ur || o.name_en || o.phone);
+      if (os.length) h += `<div class="owners">${os.map((o) => `<span>${esc(cfg.lang === 'en' ? o.name_en || o.name_ur : o.name_ur || o.name_en)} <span class="num">${esc(o.phone)}</span></span>`).join('')}</div>`;
+    }
+    const hn = pick(cfg, cfg.headerNote_ur, cfg.headerNote_en); if (hn) h += `<div class="hnote">${esc(hn)}</div>`;
+    return h + '</div>';
+  }
+  function thermalSale(doc, cfg) {
+    const t = L(cfg); const c = Store.party('customer', doc.customerId);
+    const bb = Store.billBalance('customer', doc); // same figures as the customer ledger, as of this bill
+    const linked = Store.s.payments.filter((p) => p.docId === doc.id && Store.active(p));
+    const cols = { item: cfg.colItem !== false, qty: cfg.colQty !== false, rate: cfg.colRate !== false, amount: cfg.colAmount !== false };
+    const stacked = cfg.lineStyle === 'stacked' || (cfg.lineStyle !== 'table' && cfg.paper === 'T58');
+    const tm = fmtTime(doc.time, cfg.timeFmt);
+    let b = thermalHeader(cfg);
+    b += `<div class="title">${t('Sale Invoice')}</div>`;
+    b += `<div class="kv">${cfg.showBillNo ? `<span>${t('Bill No.')}: <b class="num">${esc(cfg.billPrefix || '')}${doc.no}</b></span>` : '<span></span>'}
+      <span class="num">${fmtDate(doc.date, cfg.dateFmt, cfg.lang)}${tm ? ' ' + tm : ''}</span></div>`;
+    b += `<div>${t('Buyer name')}: <b>${N(cfg, c)}</b>${c && c.phone ? ` <span class="num small">${esc(c.phone)}</span>` : ''}</div>`;
+    if (!Store.active(doc)) b += `<div class="c"><span class="stamp">${t('CANCELLED')}</span></div>`;
+    b += '<div class="sep2"></div>';
+    if (stacked) {
+      b += doc.lines.map((l, i) => {
+        const it = Store.item(l.itemId);
+        const calc = [cols.qty ? `${kg2(l.qty)} ${esc(it ? it.unit : 'kg')}` : '', cols.rate ? `× ${money(l.rate)}` : ''].filter(Boolean).join(' ');
+        return `<div class="ln blk">${cols.item ? `<div><span class="num">${i + 1}.</span> ${N(cfg, it)}</div>` : ''}
+          <div class="calc"><span class="num">${calc}</span>${cols.amount ? `<b class="num">${money(l.qty * l.rate)}</b>` : ''}</div></div>`;
+      }).join('');
+    } else {
+      const head = (cols.item ? `<th>${t('Item')}</th>` : '') + (cols.qty ? `<th class="r">${t('KG')}</th>` : '') + (cols.rate ? `<th class="r">${t('Rate')}</th>` : '') + (cols.amount ? `<th class="r">${t('Amount')}</th>` : '');
+      const rows = doc.lines.map((l) => {
+        const it = Store.item(l.itemId);
+        return `<tr>${cols.item ? `<td class="it">${N(cfg, it)}</td>` : ''}${cols.qty ? `<td class="r num">${kg2(l.qty)}</td>` : ''}${cols.rate ? `<td class="r num">${money(l.rate)}</td>` : ''}${cols.amount ? `<td class="r num">${money(l.qty * l.rate)}</td>` : ''}</tr>`;
+      }).join('');
+      if (head) b += `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    const totQty = doc.lines.reduce((s, l) => s + +l.qty, 0);
+    b += '<div class="sep"></div>';
+    if (cols.qty) b += `<div class="kv"><span>${t('Total quantity')}</span><span class="num">${kg2(totQty)} kg</span></div>`;
+    b += `<div class="kv big blk"><span>${t('Bill total')}</span><b class="num">${money(bb.total)}</b></div>`;
+    if (cfg.showBalance !== false) {
+      b += `<div class="sep"></div><div class="bal blk">
+        <div class="kv"><span>${t('Previous balance')}</span><span class="num">${money(bb.prev)}</span></div>
+        <div class="kv"><span>${t('This bill')}</span><span class="num">${money(bb.total)}</span></div>
+        <div class="kv"><span>${t('Received now')}</span><span class="num">${money(bb.received)}</span></div>
+        <div class="kv now"><span>${t('Current balance')}</span><span class="num">${money(bb.after)}</span></div></div>`;
+    } else if (bb.received) b += `<div class="kv"><span>${t('Received now')}</span><span class="num">${money(bb.received)}</span></div>`;
+    if (cfg.showPayDetails && linked.length) {
+      b += linked.map((p) => { const m = Store.method(p.method); return `<div class="small blk">${t('Method')}: ${N(cfg, m)}${p.ref ? ` · <span class="num">${esc(p.ref)}</span>` : ''}${p.handledBy ? ` · ${esc(p.handledBy)}` : ''}</div>`; }).join('');
+    }
+    if (doc.note) b += `<div class="small">${t('Note')}: ${esc(doc.note)}</div>`;
+    const note = pick(cfg, cfg.note_ur, cfg.note_en); const ty = pick(cfg, cfg.footer_ur, cfg.footer_en);
+    if (note || ty) b += `<div class="sep"></div><div class="foot blk">${note ? `<div class="small">${esc(note)}</div>` : ''}${ty ? `<div class="ty">${esc(ty)}</div>` : ''}</div>`;
+    const base = esc(location.href.replace(/[^/]*$/, ''));
+    return `<!doctype html><html lang="${cfg.lang === 'en' ? 'en' : 'ur'}"><head><meta charset="utf-8"><base href="${base}">
+      <link rel="stylesheet" href="css/fonts.css"><style>${thermalCss(cfg)}</style></head><body><div class="rc">${b}</div></body></html>`;
   }
   function stockReceipt(doc, cfg) {
     const t = L(cfg); const v = Store.party('vendor', doc.vendorId); const farm = v && v.own_farm;
@@ -200,7 +336,11 @@ tfoot td{font-weight:700;border-top:2px solid #333;background:#f2f2f2}
     return wrap(cfg, body);
   }
 
-  function cfgFor(type, override) { return { ...Store.s.settings.print[type], ...(override || {}) }; }
+  function cfgFor(type, override) {
+    const cfg = { ...Store.s.settings.print[type], ...(override || {}) };
+    if (type !== 'sale' && isThermal(cfg.paper)) cfg.paper = 'A6'; // the thermal layout is for sale invoices
+    return cfg;
+  }
   function build(type, obj, override) {
     const cfg = cfgFor(type, override);
     if (type === 'sale') return saleInvoice(obj, cfg);
@@ -208,12 +348,38 @@ tfoot td{font-weight:700;border-top:2px solid #333;background:#f2f2f2}
     if (type === 'recovery' || type === 'payment') return paymentDoc(obj, cfg);
     return report(obj, cfg);
   }
-  function printHtml(html) {
-    // Desktop app: Windows print dialog through Electron, page size taken from the design
+  /* A thermal receipt is one long page exactly as tall as the bill: no page breaks, no blank paper fed.
+   * The height is measured here (fonts loaded) and written into @page before printing. */
+  async function fitHeight(html) {
+    const m = /\/\*THERMAL:([\d.]+)\*\//.exec(html); if (!m) return html;
+    const wmm = +m[1];
+    const f = document.createElement('iframe');
+    f.style.cssText = 'position:fixed;left:-20000px;top:0;width:' + wmm + 'mm;height:200px;border:0;visibility:hidden';
+    document.body.appendChild(f);
+    try {
+      await new Promise((r) => { f.onload = r; f.srcdoc = html; });
+      try { await f.contentDocument.fonts.ready; } catch (e) { /* ignore */ }
+      await new Promise((r) => setTimeout(r, 60));
+      const px = f.contentDocument.querySelector('.rc').getBoundingClientRect().height;
+      let hmm = Math.ceil(px * 25.4 / 96 * 1.02) + 4; // print layout runs a little taller on long Urdu bills
+      if (hmm > 5000) hmm = 297; // extremely long bill: normal pages, rows never split (break-inside: avoid)
+      return html.replace('@page{size:' + wmm + 'mm 297mm', '@page{size:' + wmm + 'mm ' + hmm + 'mm');
+    } finally { f.remove(); }
+  }
+  const pageSizeOf = (html) => {
+    const m = /@page{size:([\d.]+)mm ([\d.]+)mm/.exec(html);
+    return m ? { width: Math.round(+m[1] * 1000), height: Math.round(+m[2] * 1000) } : 'A4';
+  };
+  /** opts: { printer, silent } from the print designer */
+  async function printHtml(html, opts = {}) {
+    html = await fitHeight(html);
+    // Desktop app: Windows printing through Electron (print dialog, or straight to the chosen printer when silent)
     if (window.PM && window.PM.print) {
-      const m = /@page{size:([d.]+)mm ([d.]+)mm/.exec(html);
-      const paper = m ? { width: Math.round(+m[1] * 1000), height: Math.round(+m[2] * 1000) } : 'A4';
-      return window.PM.print(html, { paper }).then((r) => { if (r && !r.ok && r.reason && !/cancel/i.test(r.reason)) UI.toast('Print: ' + r.reason, 'error'); return r; });
+      const paper = pageSizeOf(html);
+      const r = await window.PM.print(html, { paper, thermal: /\/\*THERMAL:/.test(html), printer: opts.printer || '', silent: !!opts.silent });
+      if (r && !r.ok && r.reason && !/cancel/i.test(r.reason)) UI.toast(I18N.t('Print') + ': ' + r.reason, 'error');
+      else if (r && r.ok && opts.silent) UI.toast(I18N.t('Sent to printer') + (opts.printer ? ' — ' + opts.printer : ''), 'success');
+      return r;
     }
     const f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
@@ -224,5 +390,18 @@ tfoot td{font-weight:700;border-top:2px solid #333;background:#f2f2f2}
     };
     f.srcdoc = html;
   }
-  window.Print = { build, printHtml, print: (type, obj, o) => printHtml(build(type, obj, o)), esc };
+  async function savePdf(html, name) {
+    html = await fitHeight(html);
+    if (!(window.PM && window.PM.savePdf)) return printHtml(html); // browser demo: print dialog, then Save as PDF
+    const r = await window.PM.savePdf(html, { name });
+    if (r && r.ok) UI.toast(I18N.t('PDF saved') + ' — ' + r.file, 'success');
+    else if (r && r.reason && !/cancel/i.test(r.reason)) UI.toast('PDF: ' + r.reason, 'error');
+    return r;
+  }
+  const device = (cfg) => ({ printer: cfg.printer || '', silent: !!cfg.silent });
+  window.Print = {
+    build, printHtml, savePdf, fitHeight, esc, cfgFor, device, isThermal, PAPER, fmtDate, fmtTime,
+    previewWidth: (paper) => (isThermal(paper) ? pxOf(PAPER[paper].w) : { A4: 794, A5: 560, A6: 400 }[paper] || 560),
+    print: (type, obj, o) => printHtml(build(type, obj, o), device(cfgFor(type, o))),
+  };
 })();

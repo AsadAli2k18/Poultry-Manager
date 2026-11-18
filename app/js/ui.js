@@ -174,30 +174,53 @@
   }
 
   /* Paper-sized iframe that shrinks to fit its container */
-  function FitFrame({ doc, width }) {
-    const ref = useRef(); const [z, setZ] = useState(1);
+  function FitFrame({ doc, width, auto }) {
+    const ref = useRef(); const fr = useRef(); const [z, setZ] = useState(1); const [h, setH] = useState(0);
     useEffect(() => {
       const el = ref.current; if (!el) return;
       const fit = () => setZ(Math.min(1, (el.clientWidth - 32) / width));
       fit(); const ro = new ResizeObserver(fit); ro.observe(el); return () => ro.disconnect();
     }, [width]);
-    return html`<div class="preview-stage" ref=${ref}><iframe class="preview-frame" style=${'width:' + width + 'px;zoom:' + z} srcdoc=${doc} title="preview"></iframe></div>`;
+    // thermal: the frame is as tall as the bill, shown at the real paper width (no scrollbars eating the width)
+    useEffect(() => {
+      if (!auto) return;
+      let n = 0; const id = setInterval(() => {
+        const d = fr.current && fr.current.contentDocument; const rc = d && d.querySelector('.rc');
+        if (rc) setH(Math.ceil(rc.getBoundingClientRect().height) + 4);
+        if (++n > 12) clearInterval(id); // fonts may change the height while they load
+      }, 150);
+      return () => clearInterval(id);
+    }, [doc, auto]);
+    const style = 'width:' + width + 'px;zoom:' + z + (auto && h ? ';height:' + h + 'px' : '');
+    return html`<div class="preview-stage" ref=${ref}><iframe ref=${fr} class=${'preview-frame' + (auto ? ' thermal' : '')} style=${style} srcdoc=${doc} scrolling=${auto ? 'no' : undefined} title="preview"></iframe></div>`;
   }
 
-  /* Print preview with print button */
+  /* Print preview with print button. Sale invoices: thermal sizes and a per-bill "show balance" choice. */
   function PrintPreview({ type, obj, title, onClose }) {
     useStore();
-    const [paper, setPaper] = useState(Store.s.settings.print[type].paper);
-    const [lang, setLang] = useState(Store.s.settings.print[type].lang);
-    const doc = Print.build(type, obj, { paper, lang });
-    const w = { A4: 794, A5: 560, A6: 400 }[paper];
+    const base = Store.s.settings.print[type];
+    const [paper, setPaper] = useState(base.paper);
+    const [lang, setLang] = useState(base.lang);
+    const [showBal, setShowBal] = useState(base.showBalance !== false);
+    const [busy, setBusy] = useState(false);
+    const isSale = type === 'sale';
+    const override = { paper, lang, ...(isSale ? { showBalance: showBal } : {}) };
+    const doc = Print.build(type, obj, override);
+    const cfg = Print.cfgFor(type, override);
+    const thermal = Print.isThermal(cfg.paper);
+    const papers = ['A4', 'A5', 'A6'].map((p) => ({ value: p, label: p })).concat(isSale ? [{ value: 'T80', label: '80 mm' }, { value: 'T58', label: '58 mm' }] : []);
+    const run = (fn) => async () => { if (busy) return; setBusy(true); try { await fn(); } finally { setBusy(false); } };
+    const pdfName = () => (isSale ? 'Bill-' + obj.no : type === 'report' ? String(obj.title || 'Report') : (title || 'Document')) + (thermal ? '-' + paper.slice(1) + 'mm' : '');
     return html`<${Modal} title=${title || t('Print preview')} onClose=${onClose} size="lg" footer=${html`
-      <${Seg} value=${paper} onChange=${setPaper} options=${['A4', 'A5', 'A6'].map((p) => ({ value: p, label: p }))} />
+      <${Seg} value=${paper} onChange=${setPaper} options=${papers} />
       <${Seg} value=${lang} onChange=${setLang} options=${[{ value: 'ur', label: 'اردو' }, { value: 'en', label: 'English' }, { value: 'both', label: t('Both') }]} />
+      ${isSale && html`<label class="check"><input type="checkbox" checked=${showBal} onChange=${(e) => setShowBal(e.target.checked)} /> <span>${t('Show balance on this bill')}</span></label>`}
       <span class="grow"></span>
       <${Btn} kind="ghost" onClick=${onClose}>${t('Back')}</${Btn}>
-      <${Btn} kind="primary" icon="printer" onClick=${() => Print.printHtml(doc)}>${t('Print')}</${Btn}>`}>
-      <${FitFrame} doc=${doc} width=${w} />
+      <${Btn} icon="file-earmark-pdf" onClick=${run(() => Print.savePdf(doc, pdfName()))} disabled=${busy}>${t('Save as PDF')}</${Btn}>
+      <${Btn} kind="primary" icon="printer" onClick=${run(() => Print.printHtml(doc, Print.device(cfg)))} disabled=${busy}>${cfg.silent ? t('Print now') : t('Print')}</${Btn}>`}>
+      ${thermal && html`<div class="muted small" style="text-align:center">${t('Actual size')} — ${paper.slice(1)} mm${cfg.printer ? ' · ' + cfg.printer : ''}</div>`}
+      <${FitFrame} doc=${doc} width=${Print.previewWidth(cfg.paper)} auto=${thermal} />
     </${Modal}>`;
   }
 

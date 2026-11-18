@@ -10,8 +10,9 @@ if (!script || !dataDir || !fs.existsSync(script)) { console.error('usage: elect
 process.env.PM_DATA_DIR = path.resolve(dataDir);
 process.env.PM_NO_MAXIMIZE = '1';
 
+let mainSeen = false;
 app.on('browser-window-created', (_e, win) => {
-  if (win.__pmTested) return; win.__pmTested = true;
+  if (mainSeen) return; mainSeen = true; // only the app window, not the hidden print windows
   let runs = 0;
   win.webContents.on('did-finish-load', async () => {
     if (runs++) return; // a restore reloads the window; the next run checks the result

@@ -57,26 +57,77 @@
   function PrintDesigner() {
     const s = useStore();
     const [type, setType] = useState('sale');
+    const [printers, setPrinters] = useState(null);
+    window.htmPreact.useEffect(() => { if (window.PM && PM.printers) PM.printers().then(setPrinters).catch(() => setPrinters([])); else setPrinters([]); }, []);
     const cfg = s.settings.print[type];
     const set = (k, v) => Store.setSettings('print.' + type + '.' + k, v);
     const sample = sampleFor(type);
-    const w = { A4: 794, A5: 560, A6: 400 }[cfg.paper];
+    const thermal = type === 'sale' && Print.isThermal(cfg.paper);
+    const w = Print.previewWidth(Print.cfgFor(type).paper);
+    const chk = (k, l) => html`<label class="check"><input type="checkbox" checked=${cfg[k] !== false} onChange=${(e) => set(k, e.target.checked)} /> <span>${t(l)}</span></label>`;
+    const txt = (k, l, ur) => html`<${Field} label=${t(l) + ' — ' + (ur ? t('Urdu') : 'English')}><input class=${'inp' + (ur ? ' urdu' : '')} dir=${ur ? 'rtl' : 'ltr'} value=${cfg[k] || ''} onInput=${(e) => set(k, e.target.value)} /></${Field}>`;
+    const papers = [{ value: 'A4', label: 'A4' }, { value: 'A5', label: 'A5' }, { value: 'A6', label: t('A6 (bill pad)') }].concat(type === 'sale' ? [{ value: 'T80', label: t('Thermal 80 mm') }, { value: 'T58', label: t('Thermal 58 mm') }] : []);
+    const defName = printers && (printers.find((p) => p.isDefault) || {}).name;
     return html`<div class="designer">
+      <div class="designer-side">
       <${Card} title=${t('Print designer')} actions=${html`<${Btn} kind="ghost" size="sm" icon="arrow-counterclockwise" onClick=${async () => { if (await confirmBox(t('Reset designs?'), t('All documents go back to the default design.'))) Store.resetPrint(); }}>${t('Reset')}</${Btn}>`}>
         <${Field} label=${t('Document')}><select class="inp" value=${type} onChange=${(e) => setType(e.target.value)}>${DOCS.map((d) => html`<option value=${d.value}>${t(d.label)}</option>`)}</select></${Field}>
-        <${Field} label=${t('Template')}><div class="tpl-cards">${[['classic', 'Classic', 'Like the bill pad'], ['modern', 'Modern', 'Clean, coloured bar'], ['minimal', 'Minimal', 'Plain, saves ink']].map(([v, l, d]) => html`
-          <button type="button" class=${'tpl' + (cfg.template === v ? ' on' : '')} onClick=${() => set('template', v)}><span class=${'tpl-art tpl-' + v}><i></i><i></i><i></i></span><b>${t(l)}</b><small>${t(d)}</small></button>`)}</div></${Field}>
-        <${Field} label=${t('Paper size')}><${Seg} value=${cfg.paper} onChange=${(v) => set('paper', v)} options=${[{ value: 'A4', label: 'A4' }, { value: 'A5', label: 'A5' }, { value: 'A6', label: t('A6 (bill pad)') }]} /></${Field}>
+        <${Field} label=${t('Paper size')} hint=${type === 'sale' ? t('Thermal: for receipt printers (roll paper)') : ''}><${Seg} value=${cfg.paper} onChange=${(v) => set('paper', v)} options=${papers} /></${Field}>
+        ${thermal ? html`
+          <${Field} label=${t('Design')}><${Seg} value=${cfg.design || 'standard'} onChange=${(v) => set('design', v)} options=${[{ value: 'standard', label: t('Standard') }, { value: 'boxed', label: t('Boxed (bold title)') }]} /></${Field}>`
+        : html`<${Field} label=${t('Template')}><div class="tpl-cards">${[['classic', 'Classic', 'Like the bill pad'], ['modern', 'Modern', 'Clean, coloured bar'], ['minimal', 'Minimal', 'Plain, saves ink']].map(([v, l, d]) => html`
+          <button type="button" class=${'tpl' + (cfg.template === v ? ' on' : '')} onClick=${() => set('template', v)}><span class=${'tpl-art tpl-' + v}><i></i><i></i><i></i></span><b>${t(l)}</b><small>${t(d)}</small></button>`)}</div></${Field}>`}
         <${Field} label=${t('Print language')}><${Seg} value=${cfg.lang} onChange=${(v) => set('lang', v)} options=${[{ value: 'ur', label: 'اردو' }, { value: 'en', label: 'English' }, { value: 'both', label: t('Both') }]} /></${Field}>
-        <${Field} label=${t('Text size')}><${Seg} value=${cfg.font} onChange=${(v) => set('font', v)} options=${[{ value: 's', label: t('Small') }, { value: 'm', label: t('Medium') }, { value: 'l', label: t('Large') }]} /></${Field}>
-        <${Field} label=${t('Colour')}><div class="swatches">${ACCENTS.map((c) => html`<button type="button" class=${'sw' + (cfg.accent === c ? ' on' : '')} style=${'background:' + c} onClick=${() => set('accent', c)} aria-label=${c}></button>`)}</div></${Field}>
-        <${Field} label=${t('Show on the document')}><div class="toggles">${TOGGLES.map(([k, l]) => html`<label class="check"><input type="checkbox" checked=${!!cfg[k]} onChange=${(e) => set(k, e.target.checked)} /> <span>${t(l)}</span></label>`)}</div></${Field}>
-        <${Field} label=${t('Footer text') + ' — ' + t('Urdu')}><input class="inp urdu" dir="rtl" value=${cfg.footer_ur} onInput=${(e) => set('footer_ur', e.target.value)} /></${Field}>
-        <${Field} label=${t('Footer text') + ' — English'}><input class="inp" dir="ltr" value=${cfg.footer_en} onInput=${(e) => set('footer_en', e.target.value)} /></${Field}>
+        <${Field} label=${t('Text size')}><${Seg} value=${cfg.font} onChange=${(v) => set('font', v)} options=${[{ value: 's', label: t('Small') }, { value: 'm', label: t('Medium') }, { value: 'l', label: t('Large') }, { value: 'xl', label: t('Extra large') }]} /></${Field}>
+        ${thermal ? chk('bold', 'Dark (bold) text — clearer on thermal paper')
+          : html`<${Field} label=${t('Colour')}><div class="swatches">${ACCENTS.map((c) => html`<button type="button" class=${'sw' + (cfg.accent === c ? ' on' : '')} style=${'background:' + c} onClick=${() => set('accent', c)} aria-label=${c}></button>`)}</div></${Field}>`}
       </${Card}>
-      <div class="designer-preview"><div class="muted small">${t('Live preview')} — ${t(DOCS.find((d) => d.value === type).label)} · ${cfg.paper}</div>
-        ${sample ? html`<${UI.FitFrame} doc=${Print.build(type, sample)} width=${w} />` : html`<div class="muted">${t('No sample yet')}</div>`}
-        ${sample && html`<${Btn} icon="printer" onClick=${() => Print.print(type, sample)}>${t('Test print')}</${Btn}>`}</div>
+      ${thermal ? html`
+        <${Card} title=${t('Header')}>
+          <div class="toggles">${chk('showShopName', 'Shop name')}${chk('showAddress', 'Address')}${chk('showOwners', 'Owner names and phones')}<label class="check"><input type="checkbox" checked=${!!cfg.showLogo} onChange=${(e) => set('showLogo', e.target.checked)} /> <span>${t('Logo')}</span></label></div>
+          <p class="muted small">${t('Name, address, owners and logo come from Settings → Shop profile.')}</p>
+          ${txt('headerNote_ur', 'Header note', true)}${txt('headerNote_en', 'Header note', false)}
+        </${Card}>
+        <${Card} title=${t('Items')}>
+          <${Field} label=${t('Columns')}><div class="toggles">${chk('colItem', 'Item')}${chk('colQty', 'KG')}${chk('colRate', 'Rate')}${chk('colAmount', 'Amount')}</div></${Field}>
+          <${Field} label=${t('Item lines')}><${Seg} value=${cfg.lineStyle || 'auto'} onChange=${(v) => set('lineStyle', v)} options=${[{ value: 'auto', label: t('Auto') }, { value: 'table', label: t('Table') }, { value: 'stacked', label: t('Two lines') }]} /></${Field}>
+          <p class="muted small">${t('Auto: table on 80 mm, two lines per item on 58 mm.')}</p>
+        </${Card}>
+        <${Card} title=${t('Bill number and date')}>
+          ${chk('showBillNo', 'Bill number')}
+          <${Field} label=${t('Bill number prefix')} hint=${t('Optional, e.g. INV-')}><input class="inp" dir="ltr" value=${cfg.billPrefix || ''} onInput=${(e) => set('billPrefix', e.target.value)} /></${Field}>
+          <${Field} label=${t('Date format')}><select class="inp" value=${cfg.dateFmt || 'd/m/yy'} onChange=${(e) => set('dateFmt', e.target.value)}>${['d/m/yy', 'dd/mm/yyyy', 'dd-mm-yyyy', 'd mon yyyy'].map((f) => html`<option value=${f}>${Print.fmtDate('2026-03-07', f, cfg.lang)}</option>`)}</select></${Field}>
+          <${Field} label=${t('Time')}><${Seg} value=${cfg.timeFmt || '24h'} onChange=${(v) => set('timeFmt', v)} options=${[{ value: '24h', label: '14:30' }, { value: '12h', label: '2:30 PM' }, { value: 'off', label: t('Hide') }]} /></${Field}>
+        </${Card}>
+        <${Card} title=${t('Balance and payment')}>
+          ${chk('showBalance', 'Balance section (previous, this bill, received, current)')}
+          <p class="muted small">${t('Can also be turned off for a single bill when printing.')}</p>
+          <label class="check"><input type="checkbox" checked=${!!cfg.showPayDetails} onChange=${(e) => set('showPayDetails', e.target.checked)} /> <span>${t('Payment details (method, TID…)')}</span></label>
+        </${Card}>
+        <${Card} title=${t('Footer')}>
+          ${txt('note_ur', 'Footer note', true)}${txt('note_en', 'Footer note', false)}
+          ${txt('footer_ur', 'Thank-you text', true)}${txt('footer_en', 'Thank-you text', false)}
+        </${Card}>`
+      : html`<${Card} title=${t('Show on the document')}>
+        ${type === 'sale' && chk('showBalance', 'Balance section (previous, this bill, received, current)')}
+        <div class="toggles">${TOGGLES.map(([k, l]) => html`<label class="check"><input type="checkbox" checked=${!!cfg[k]} onChange=${(e) => set(k, e.target.checked)} /> <span>${t(l)}</span></label>`)}</div>
+        ${txt('footer_ur', 'Footer text', true)}${txt('footer_en', 'Footer text', false)}
+      </${Card}>`}
+      <${Card} title=${t('Printer')}>
+        <${Field} label=${t('Print to')} hint=${printers && !printers.length ? t('No printers found. Windows default is used.') : ''}>
+          <select class="inp" value=${cfg.printer || ''} onChange=${(e) => set('printer', e.target.value)}>
+            <option value="">${t('Windows default printer')}${defName ? ' (' + defName + ')' : ''}</option>
+            ${(printers || []).map((p) => html`<option value=${p.name}>${p.displayName}</option>`)}
+            ${cfg.printer && printers && !printers.some((p) => p.name === cfg.printer) && html`<option value=${cfg.printer}>${cfg.printer} — ${t('not found')}</option>`}
+          </select></${Field}>
+        <label class="check"><input type="checkbox" checked=${!!cfg.silent} onChange=${(e) => set('silent', e.target.checked)} /> <span>${t('Print straight away (no print window)')}</span></label>
+        <p class="muted small">${t('Each document can use its own printer, e.g. thermal for bills and A4 for reports. To save a PDF, use "Save as PDF" in the print preview.')}</p>
+      </${Card}>
+      </div>
+      <div class="designer-preview"><div class="muted small">${t('Live preview')} — ${t(DOCS.find((d) => d.value === type).label)} · ${thermal ? t('actual size') + ' ' + cfg.paper.slice(1) + ' mm' : cfg.paper}</div>
+        ${sample ? html`<${UI.FitFrame} doc=${Print.build(type, sample)} width=${w} auto=${thermal} />` : html`<div class="muted">${t('No sample yet')}</div>`}
+        ${sample && html`<div class="row-gap"><${Btn} icon="printer" onClick=${() => Print.print(type, sample)}>${t('Test print')}</${Btn}>
+          <${Btn} icon="file-earmark-pdf" onClick=${() => Print.savePdf(Print.build(type, sample), 'Sample-' + type + '-' + cfg.paper)}>${t('Save as PDF')}</${Btn}></div>`}</div>
     </div>`;
   }
 

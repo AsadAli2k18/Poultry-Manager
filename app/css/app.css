@@ -251,3 +251,6 @@ textarea.inp{padding:8px 11px}
   .main{padding:14px}.grid-2,.payf,.settings,.name-pair{grid-template-columns:1fr}.tiles{grid-template-columns:repeat(2,1fr)}
 }
 .nowrap{white-space:nowrap}
+.designer-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.row-gap{display:flex;gap:8px;flex-wrap:wrap}
+.preview-frame.thermal{height:420px;border-radius:0}

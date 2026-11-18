@@ -62,20 +62,54 @@ function registerIpc() {
   });
   ipcMain.handle('app:openFolder', (_e, p) => shell.openPath(p || dirs.root));
 
-  // Print through Windows' own print dialog. The page is written to a temp file so fonts and styles load offline.
-  ipcMain.handle('print:html', async (_e, html, opts = {}) => {
-    const file = path.join(os.tmpdir(), 'poultry-print-' + Date.now() + '.html');
+  // Printing. The page is written to a temp file so fonts and styles load offline, then printed from a hidden window.
+  // Page size comes from the design's @page (a thermal bill is one page exactly as tall as the bill).
+  async function withPage(html, fn) {
+    const file = path.join(os.tmpdir(), 'poultry-print-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '.html');
     fs.writeFileSync(file, html, 'utf8');
-    const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, javascript: false } });
+    const thermal = /\/\*THERMAL:([\d.]+)\*\//.exec(html);
+    // scripts stay off, except for a thermal bill: its height is measured in this same window, after the fonts load
+    const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, javascript: !!thermal } });
     try {
       await pw.loadFile(file);
       await new Promise((r) => setTimeout(r, 400)); // let the Urdu font finish loading
-      return await new Promise((resolve) => {
-        pw.webContents.print({ silent: false, printBackground: true, pageSize: opts.paper || 'A4', margins: { marginType: 'default' } }, (ok, reason) => resolve({ ok, reason }));
-      });
+      let size = null;
+      if (thermal) {
+        const px = await pw.webContents.executeJavaScript("document.fonts.ready.then(() => document.querySelector('.rc').getBoundingClientRect().height)");
+        let h = Math.ceil(px * 25.4 / 96 * 1.02) + 4; // print layout runs a little taller than screen on long Urdu bills
+        if (h > 5000) h = 297; // extremely long bill: normal pages, rows never split
+        size = { width: +thermal[1], height: h };
+        await pw.webContents.insertCSS('@page{size:' + size.width + 'mm ' + h + 'mm;margin:0}');
+      }
+      return await fn(pw, size);
     } finally {
       pw.destroy(); fs.unlink(file, () => {});
     }
+  }
+  ipcMain.handle('print:printers', async () => {
+    try { return (await win.webContents.getPrintersAsync()).map((p) => ({ name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault })); } catch (e) { return []; }
+  });
+  ipcMain.handle('print:html', async (_e, html, opts = {}) => withPage(html, (pw, size) => new Promise((resolve) => {
+    const paper = size ? { width: Math.round(size.width * 1000), height: Math.round(size.height * 1000) } : opts.paper || 'A4';
+    const o = { silent: !!opts.silent, printBackground: true, pageSize: paper, margins: { marginType: opts.thermal ? 'none' : 'default' } };
+    if (opts.printer) o.deviceName = opts.printer; // empty: Windows' default printer
+    pw.webContents.print(o, (ok, reason) => resolve({ ok, reason }));
+  })));
+  // Save as PDF at the design's exact page size. PM_PDF_DIR (checks only) saves without asking.
+  ipcMain.handle('print:pdf', async (_e, html, opts = {}) => {
+    const name = String(opts.name || 'Bill').replace(/[^\w\- .]+/g, '_') + '.pdf';
+    let file;
+    if (process.env.PM_PDF_DIR) file = path.join(process.env.PM_PDF_DIR, name);
+    else {
+      const r = await dialog.showSaveDialog(win, { title: 'Save as PDF', defaultPath: path.join(app.getPath('documents'), name), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+      if (r.canceled || !r.filePath) return { ok: false, reason: 'cancelled' };
+      file = r.filePath;
+    }
+    try {
+      const data = await withPage(html, (pw) => pw.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { top: 0, bottom: 0, left: 0, right: 0 } }));
+      fs.writeFileSync(file, data);
+      return { ok: true, file };
+    } catch (e) { return { ok: false, reason: e.message || String(e) }; }
   });
 }
 
