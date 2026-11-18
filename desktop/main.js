@@ -116,7 +116,7 @@ function registerIpc() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1366, height: 860, minWidth: 1024, minHeight: 640,
-    title: 'Poultry Manager', backgroundColor: '#F4F6FA', show: false,
+    title: 'Poultry Manager', backgroundColor: '#F4F6FA', show: false, icon: path.join(__dirname, 'icon.ico'), // own icon in the title bar and taskbar
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.loadFile(path.join(__dirname, '..', 'app', 'index.html'));
@@ -127,6 +127,8 @@ function createWindow() {
 }
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+// Windows groups the taskbar button by this id; it matches the installer's appId so the pinned/shortcut icon is ours, not Electron's
+if (process.platform === 'win32') app.setAppUserModelId('pk.poultrymanager.app');
 Menu.setApplicationMenu(null);
 app.whenReady().then(() => {
   if (!primary) return; // the app is already open: that window was brought to the front

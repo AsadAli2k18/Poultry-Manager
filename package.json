@@ -10,7 +10,8 @@
     "postinstall": "electron-builder install-app-deps",
     "test": "node tools/run-selftest.js",
     "vendor": "node tools/copy-vendor.js",
-    "demo": "node tools/serve.js"
+    "demo": "node tools/serve.js",
+    "icon": "electron tools/make-icon.js"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",
@@ -37,6 +38,7 @@
       "output": "dist"
     },
     "win": {
+      "icon": "desktop/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -53,6 +55,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Poultry Manager",
+      "installerIcon": "desktop/icon.ico",
+      "uninstallerIcon": "desktop/icon.ico",
       "deleteAppDataOnUninstall": false,
       "artifactName": "PoultryManager-Setup-${version}.exe"
     }
