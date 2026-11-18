@@ -67,9 +67,9 @@
       }
       setBusy(true); const p = Store.savePayment(dir, data); setBusy(false);
       toast(tf('{no} saved', { no: Util.payNo(p) }), 'success');
-      if (andPrint) setPreview(p); else history.back();
+      if (andPrint) setPreview(p); else App.back();
     }
-    return html`<${Page} title=${old ? tf('Correct {no}', { no: Util.payNo(old) }) : t(M.newLabel)} icon=${M.icon} actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}>`}>
+    return html`<${Page} title=${old ? tf('Correct {no}', { no: Util.payNo(old) }) : t(M.newLabel)} icon=${M.icon} actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => App.back()}>${t('Back')}</${Btn}>`}>
       ${old && html`<div class="alert alert-yellow"><${Ico} n="info-circle" /> ${t('Correcting keeps the original entry on record as cancelled, and saves this as a new entry.')}</div>`}
       <div class="form-grid"><div class="form-main">
         <${Card} title=${t(M.partyLabel)}>
@@ -93,9 +93,9 @@
         <div class="side-actions">
           <${Btn} kind="primary" size="lg" block icon="printer" onClick=${() => save(true)} disabled=${busy}>${t('Save and print')}</${Btn}>
           <${Btn} size="lg" block icon="check2" onClick=${() => save(false)} disabled=${busy}>${t('Save')}</${Btn}>
-          <${Btn} kind="ghost" block onClick=${() => history.back()}>${t('Back')}</${Btn}></div>
+          <${Btn} kind="ghost" block onClick=${() => App.back()}>${t('Back')}</${Btn}></div>
       </div></aside></div>
-      ${preview && html`<${PrintPreview} type=${M.printType} obj=${preview} title=${t(dir === 'in' ? 'Payment Receipt' : 'Payment Voucher')} onClose=${() => { setPreview(null); history.back(); }} />`}
+      ${preview && html`<${PrintPreview} type=${M.printType} obj=${preview} title=${t(dir === 'in' ? 'Payment Receipt' : 'Payment Voucher')} onClose=${() => { setPreview(null); App.back(); }} />`}
     </${Page}>`;
   }
 

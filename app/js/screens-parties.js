@@ -88,7 +88,7 @@
     const pays = s.payments.filter((x) => x.partyId === id && x.dir === (kind === 'customer' ? 'in' : 'out')).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
     const unpaid = docs.map((d) => ({ d, x: Store.docStatus(kind, d) })).filter((r) => r.x.status === 'unpaid' || r.x.status === 'partial');
     return html`<${Page} title=${nm(p)} icon=${M.icon} sub=${html`<span class="num">${p.code}</span> · <span class="num">${p.phone}</span> · ${p.address} ${p.own_farm ? html`<span class="badge badge-teal">${t('Own farm')}</span>` : ''}`}
-      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}>
+      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => App.back()}>${t('Back')}</${Btn}>
         <${Btn} icon="pencil" onClick=${() => App.openPartyForm(kind, p)}>${t('Edit')}</${Btn}>
         ${!p.own_farm && html`<${Btn} icon="cash-coin" onClick=${() => nav(M.payRoute + '-new', { partyId: id })}>${t(M.newPay)}</${Btn}>`}
         <${Btn} kind="primary" icon="plus-lg" onClick=${() => nav(M.docRoute + '-new', { partyId: id })}>${t(M.newDoc)}</${Btn}>`}>

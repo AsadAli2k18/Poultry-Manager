@@ -254,3 +254,15 @@ textarea.inp{padding:8px 11px}
 .designer-side{display:flex;flex-direction:column;gap:16px;min-width:0}
 .row-gap{display:flex;gap:8px;flex-wrap:wrap}
 .preview-frame.thermal{height:420px;border-radius:0}
+/* tabs */
+.main[hidden]{display:none!important}
+.tabbar{display:flex;align-items:flex-end;gap:2px;padding:6px 12px 0;background:var(--sunken);border-bottom:1px solid var(--bd);overflow-x:auto;scrollbar-width:thin;min-height:40px}
+.tab{display:flex;align-items:center;gap:6px;padding:6px 10px;max-width:220px;min-width:0;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;color:var(--muted,#64748b);font-size:.92em;user-select:none;flex-shrink:0}
+.tab:hover{background:var(--surface)}
+.tab.on{background:var(--surface);border-color:var(--bd);color:var(--text,inherit);font-weight:600;box-shadow:0 1px 0 var(--surface)}
+.tab.on .bi{color:var(--brand)}
+.tab-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab-x{border:0;background:none;color:inherit;cursor:pointer;border-radius:4px;padding:0 2px;line-height:1;opacity:.6}
+.tab-x:hover{opacity:1;background:var(--sunken)}
+.tab-new{border:0;background:none;cursor:pointer;color:var(--muted,#64748b);padding:6px 8px;border-radius:6px;flex-shrink:0;align-self:center}
+.tab-new:hover{background:var(--surface);color:var(--brand)}

@@ -44,7 +44,7 @@
     const card = Store.stockCard(id);
     const rows = card.rows.slice().reverse();
     return html`<${Page} title=${nm(it)} icon="box-seam" sub=${t('Stock card — every movement in and out')}
-      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}><${Btn} icon="sliders" onClick=${() => setAdj(true)}>${t('Stock correction')}</${Btn}>`}>
+      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => App.back()}>${t('Back')}</${Btn}><${Btn} icon="sliders" onClick=${() => setAdj(true)}>${t('Stock correction')}</${Btn}>`}>
       <div class="kpis"><${Kpi} icon="flag" label=${t('Opening stock')} value=${qty(card.opening) + ' kg'} /><${Kpi} icon="box-seam" tone="teal" label=${t('Available now')} value=${qty(Store.stockOf(id)) + ' kg'} />
         <${Kpi} icon="tag" tone="yellow" label=${t('Selling rate')} value=${money(it.rate)} />${Store.avgCost(id) != null && html`<${Kpi} icon="calculator" tone="brand" label=${t('Average cost')} value=${money(Store.avgCost(id))} />`}</div>
       <${Card} pad=${false}><${Table} limit=${80} rows=${rows} rowCls=${(r) => (r.cancelled ? 'row-cancel' : '')} columns=${[

@@ -7,7 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2; // 2: drafts
 
 // table -> extra columns: [name, SQL type, (record) => value]
 const num = (v) => (v == null || v === '' ? null : +v);
@@ -23,6 +23,8 @@ const TABLES = {
   payments: [['no', 'INTEGER', (r) => r.no], ['dir', 'TEXT', (r) => r.dir], ['date', 'TEXT', (r) => r.date], ['party_id', 'TEXT', (r) => r.partyId], ['amount', 'REAL', (r) => num(r.amount)], ['method', 'TEXT', (r) => r.method], ['ref', 'TEXT', (r) => r.ref], ['doc_id', 'TEXT', (r) => r.docId || null], ['status', 'TEXT', (r) => r.status]],
   adjustments: [['date', 'TEXT', (r) => r.date], ['item_id', 'TEXT', (r) => r.itemId], ['qty', 'REAL', (r) => num(r.qty)], ['reason', 'TEXT', (r) => r.reason], ['status', 'TEXT', (r) => r.status || 'active']],
   expenses: [['no', 'INTEGER', (r) => r.no], ['date', 'TEXT', (r) => r.date], ['category_id', 'TEXT', (r) => r.categoryId], ['amount', 'REAL', (r) => num(r.amount)], ['method', 'TEXT', (r) => r.method], ['status', 'TEXT', (r) => r.status]],
+  // unfinished bills: no number, no effect on stock or balances until saved as a real bill
+  drafts: [['kind', 'TEXT', (r) => r.kind], ['date', 'TEXT', (r) => r.date], ['party_id', 'TEXT', (r) => r.partyId || null], ['total', 'REAL', docTotal], ['saved_at', 'TEXT', (r) => r.savedAt]],
   audit: [['at', 'TEXT', (r) => r.at], ['action', 'TEXT', (r) => r.action], ['ref', 'TEXT', (r) => r.ref]],
 };
 const DOC_TABLES = { invoices: 'customerId', receipts: 'vendorId' };
@@ -80,7 +82,12 @@ class Store {
         this.setMeta('created_at', new Date().toISOString());
       })();
     }
-    // later schema changes go here: if (v < 2) { ... }
+    if (v < 2) {
+      const extra = TABLES.drafts.map(([n, ty]) => `${n} ${ty}`).join(', ');
+      db.exec(`CREATE TABLE IF NOT EXISTS drafts (id TEXT PRIMARY KEY, ${extra}, data TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+      this.setMeta('schema_version', '2');
+    }
+    // later schema changes go here: if (v < 3) { ... }
   }
 
   prepare() {

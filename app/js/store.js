@@ -8,7 +8,7 @@
   'use strict';
   const LS_KEY = 'pm.demo.v4';
   const DESK = !!(window.PM && window.PM.desktop);
-  const TABLES = ['items', 'customers', 'vendors', 'categories', 'methods', 'invoices', 'receipts', 'payments', 'adjustments', 'expenses'];
+  const TABLES = ['items', 'customers', 'vendors', 'categories', 'methods', 'invoices', 'receipts', 'payments', 'adjustments', 'expenses', 'drafts'];
   const listeners = new Set();
   let S = null;
   let INFO = {};
@@ -540,6 +540,21 @@
       const t = lineTotal(data.lines);
       return recentDuplicate(docsFor(kind), (d) => docParty(d) === data.partyId && total(d) === t && active(d));
     },
+    /* Drafts: an unfinished bill kept as typed (no number, no stock or balance effect). */
+    saveDraft(kind, data, id) {
+      const d = id && byId(S.drafts, id);
+      const rec = {
+        id: d ? d.id : uid() + uid(), kind, savedAt: today() + ' ' + nowTime(),
+        date: data.date || today(), partyId: data.partyId || '', note: data.note || '',
+        lines: (data.lines || []).filter((l) => l.itemId || l.qty || l.rate).map((l) => ({ itemId: l.itemId || '', qty: l.qty === '' ? '' : +l.qty || 0, rate: l.rate === '' ? '' : +l.rate || 0 })),
+        paidNow: data.paidNow || '', payment: data.payment || null, vendorBillNo: data.vendorBillNo || '', vehicle: data.vehicle || '',
+        photo: data.photo ? storePhoto(data.photo) : '', replaces: data.replaces || null,
+      };
+      if (d) Object.assign(d, rec); else S.drafts.push(rec);
+      emit(); return d || rec;
+    },
+    deleteDraft(id) { const i = S.drafts.findIndex((x) => x.id === id); if (i >= 0) { S.drafts.splice(i, 1); emit(); } },
+    drafts: (kind) => S.drafts.filter((d) => d.kind === kind).sort((a, b) => b.savedAt.localeCompare(a.savedAt)),
     cancelDoc(kind, id, reason) {
       const d = byId(docsFor(kind), id); if (!d || !active(d)) return;
       d.status = 'cancelled'; d.cancelDate = today(); d.cancelTime = nowTime(); d.cancelSeq = nextSeq(); d.cancelReason = reason;

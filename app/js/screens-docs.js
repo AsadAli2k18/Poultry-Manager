@@ -30,6 +30,7 @@
         <${Kpi} icon="cash-stack" tone="green" label=${t('Total amount')} value=${money(tt)} />
         <${Kpi} icon="hourglass-split" tone="red" label=${t(kind === 'customer' ? 'Unpaid on these bills' : 'Unpaid to vendors')} value=${money(tdue)} />
       </div>
+      <${Drafts} kind=${kind} />
       <${Card} pad=${false}>
         <div class="filters"><${Search} value=${q} onInput=${setQ} placeholder=${t(kind === 'customer' ? 'Search customer or bill no.' : 'Search vendor or bill no.')} />
           <${Seg} value=${period} onChange=${setPeriod} options=${Util.periodOptions()} />
@@ -49,12 +50,36 @@
       </${Card}></${Page}>`;
   }
 
+  function Drafts({ kind }) {
+    useStore(); const M = META[kind];
+    const list = Store.drafts(kind);
+    if (!list.length) return null;
+    const del = async (d) => { if (await confirmBox(t('Delete this draft?'), t('Only the draft is removed. No bill or balance is affected.'), { danger: true, okLabel: t('Delete') })) Store.deleteDraft(d.id); };
+    return html`<${Card} title=${t('Drafts') + ' (' + list.length + ')'} pad=${false}>
+      <${Table} rows=${list} onRow=${(d) => nav(M.route + '-new', { draft: d.id })} columns=${[
+        { label: t(M.partyLabel), render: (d) => html`<b>${d.partyId ? nm(Store.party(kind, d.partyId)) : html`<span class="muted">${t('Not chosen')}</span>`}</b>` },
+        { label: t('Date'), render: (d) => html`<${D} v=${d.date} />` },
+        { label: t('Items'), render: (d) => html`<span class="small">${Util.linesText(d.lines.filter((l) => l.itemId))}</span>` },
+        { label: t('Total'), num: true, render: (d) => html`<${Num} v=${Math.round(d.lines.reduce((a, l) => a + (+l.qty || 0) * (+l.rate || 0), 0))} />` },
+        { label: t('Saved'), render: (d) => html`<span class="num small muted">${I18N.dmy(d.savedAt.slice(0, 10))} ${d.savedAt.slice(11)}</span>` },
+        { label: '', render: (d) => html`<span class="row-gap"><${Btn} size="sm" icon="pencil-square" onClick=${(e) => { e.stopPropagation(); nav(M.route + '-new', { draft: d.id }); }}>${t('Continue')}</${Btn}>
+          <button class="icon-btn" title=${t('Delete')} onClick=${(e) => { e.stopPropagation(); del(d); }}><${Ico} n="trash3" /></button></span>` },
+      ]} /></${Card}>`;
+  }
+
   /* ---------------- form ---------------- */
   const newLine = () => ({ key: Store.uid(), itemId: '', qty: '', rate: '' });
-  function DocForm({ kind, replaces, partyId: initialParty }) {
+  function DocForm({ kind, replaces, partyId: initialParty, draft }) {
     const s = useStore(); const M = META[kind]; const isC = kind === 'customer';
-    const old = replaces ? (isC ? s.invoices : s.receipts).find((d) => d.id === replaces) : null;
-    const [f, setF] = useState(() => ({
+    const dr = draft ? s.drafts.find((d) => d.id === draft) : null;
+    const replacesId = dr ? dr.replaces : replaces;
+    const old = replacesId ? (isC ? s.invoices : s.receipts).find((d) => d.id === replacesId) : null;
+    const [draftId, setDraftId] = useState(dr ? dr.id : null);
+    const [f, setF] = useState(() => (dr ? {
+      partyId: dr.partyId || '', date: dr.date || Store.today(), note: dr.note || '', vendorBillNo: dr.vendorBillNo || '', vehicle: dr.vehicle || '', photo: dr.photo || '',
+      lines: dr.lines.length ? dr.lines.map((l) => ({ key: Store.uid(), itemId: l.itemId, qty: String(l.qty), rate: String(l.rate) })) : [newLine()],
+      paidNow: dr.paidNow ? String(dr.paidNow) : '', payment: dr.payment || emptyPayment(),
+    } : {
       partyId: old ? Store.docParty(old) : initialParty || '', date: old ? old.date : Store.today(), note: old ? old.note : '',
       vendorBillNo: old ? old.vendorBillNo || '' : '', vehicle: old ? old.vehicle || '' : '', photo: old ? old.photo || '' : '',
       lines: old ? old.lines.map((l) => ({ key: Store.uid(), itemId: l.itemId, qty: String(l.qty), rate: String(l.rate) })) : [newLine()],
@@ -96,14 +121,24 @@
       }
       setBusy(true);
       const doc = Store.saveDoc(kind, data);
+      if (draftId) Store.deleteDraft(draftId); // the draft is now a real bill
       setBusy(false);
       toast(tf(isC ? 'Invoice {no} saved' : 'Stock receipt {no} saved', { no: Util.docNo(kind, doc) }), 'success');
       if (andPrint) setPreview(doc); else nav(M.route + '-view', { id: doc.id });
     }
+    // keep an unfinished bill to finish later: no bill number, no stock or balance change yet
+    function saveDraft() {
+      if (!f.partyId && !lines.some((l) => l.itemId || l.qty)) return toast(t('Nothing to keep yet'), 'error');
+      const d = Store.saveDraft(kind, { ...f, replaces: old ? old.id : null }, draftId);
+      setDraftId(d.id);
+      toast(t('Draft saved — find it at the top of the list'), 'success');
+      nav(M.route, {}, true);
+    }
     const onPhoto = (e) => { const file = e.target.files[0]; if (!file) return; Util.readImage(file).then((d) => set('photo', d)); };
 
     return html`<${Page} title=${old ? tf('Correct {no}', { no: Util.docNo(kind, old) }) : t(M.newLabel)} icon=${M.icon}
-      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}>`}>
+      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => App.back()}>${t('Back')}</${Btn}>`}>
+      ${draftId && html`<div class="alert alert-teal"><${Ico} n="file-earmark" /> ${t('Draft — not saved as a bill yet. Stock and balances change only when you press Save.')}</div>`}
       ${old && html`<div class="alert alert-yellow"><${Ico} n="info-circle" /> ${t('Correcting keeps the original bill on record as cancelled, and saves this as a new bill.')}</div>`}
       <div class="form-grid">
         <div class="form-main">
@@ -150,7 +185,8 @@
             <div class="side-actions">
               <${Btn} kind="primary" size="lg" block icon="printer" onClick=${() => save(true)} disabled=${busy}>${t('Save and print')}</${Btn}>
               <${Btn} kind="default" size="lg" block icon="check2" onClick=${() => save(false)} disabled=${busy}>${t('Save')}</${Btn}>
-              <${Btn} kind="ghost" block onClick=${() => history.back()}>${t('Back')}</${Btn}>
+              <${Btn} kind="ghost" block icon="file-earmark" onClick=${saveDraft} disabled=${busy}>${t(draftId ? 'Update draft' : 'Save as draft')}</${Btn}>
+              <${Btn} kind="ghost" block onClick=${() => App.back()}>${t('Back')}</${Btn}>
             </div>
           </div>
         </aside>
@@ -164,7 +200,7 @@
     const s = useStore(); const M = META[kind]; const isC = kind === 'customer';
     const [preview, setPreview] = useState(false);
     const d = (isC ? s.invoices : s.receipts).find((x) => x.id === id);
-    if (!d) return html`<${Page} title=${t('Not found')}><${Btn} onClick=${() => history.back()}>${t('Back')}</${Btn}></${Page}>`;
+    if (!d) return html`<${Page} title=${t('Not found')}><${Btn} onClick=${() => App.back()}>${t('Back')}</${Btn}></${Page}>`;
     const p = Store.party(kind, Store.docParty(d)); const x = Store.docStatus(kind, d);
     const linked = s.payments.filter((pp) => pp.docId === d.id);
     const repl = d.replacedBy ? (isC ? s.invoices : s.receipts).find((y) => y.id === d.replacedBy) : null;
@@ -174,7 +210,7 @@
       if (reason) { Store.cancelDoc(kind, d.id, reason); toast(t('Bill cancelled'), 'success'); }
     };
     return html`<${Page} title=${t(M.one) + ' ' + Util.docNo(kind, d)} icon=${M.icon} sub=${html`<${D} v=${d.date} /> · <span class="num">${d.time}</span>`}
-      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => history.back()}>${t('Back')}</${Btn}>
+      actions=${html`<${Btn} kind="ghost" icon="arrow-right-short" onClick=${() => App.back()}>${t('Back')}</${Btn}>
         <${Btn} kind="primary" icon="printer" onClick=${() => setPreview(true)}>${t('Print')}</${Btn}>
         ${d.status !== 'cancelled' && html`<${Btn} icon="pencil-square" onClick=${() => nav(M.route + '-new', { replaces: d.id })}>${t('Correct')}</${Btn}>
         <${Btn} kind="danger-ghost" icon="x-circle" onClick=${cancel}>${t('Cancel bill')}</${Btn}>`}`}>

@@ -5,16 +5,102 @@
   const { render } = window.htmPreact;
   const { t, tf, nm, money, qty } = I18N;
 
-  /* ---------- router (hash based so Back works everywhere) ---------- */
+  /* ---------- tabs and router ----------
+   * Several screens can be open at once, each in its own tab with its own Back history.
+   * A tab keeps its screen alive while hidden, so a half-typed bill is still there when you come back.
+   * Ctrl+click or middle-click on a menu item, list row or button opens it in a new tab. */
+  const MAX_TABS = 12;
+  const hashOf = (route, params) => '#/' + route + (params && Object.keys(params).length ? '?' + encodeURIComponent(JSON.stringify(params)) : '');
   function parse() {
     const h = location.hash.replace(/^#\/?/, ''); const [r, q] = h.split('?');
     let p = {}; try { p = q ? JSON.parse(decodeURIComponent(q)) : {}; } catch (e) { p = {}; }
     return { route: r || 'home', params: p };
   }
+  const newTab = (route, params) => ({ id: Math.random().toString(36).slice(2, 9), route: route || 'home', params: params || {}, hist: [] });
+  const T = (() => {
+    let saved = null; try { saved = JSON.parse(sessionStorage.getItem('pm.tabs') || 'null'); } catch (e) { /* ignore */ }
+    const ok = saved && Array.isArray(saved.tabs) && saved.tabs.length && saved.tabs.every((x) => x && x.id && x.route);
+    const st = ok ? { tabs: saved.tabs.map((x) => ({ ...x, hist: [] })), active: saved.active } : { tabs: [newTab(parse().route, parse().params)], active: null };
+    if (!st.tabs.some((x) => x.id === st.active)) st.active = st.tabs[0].id;
+    return st;
+  })();
+  const tabSubs = new Set();
+  const cur = () => T.tabs.find((x) => x.id === T.active);
+  function tabsChanged() {
+    const c = cur(); const h = hashOf(c.route, c.params);
+    if (location.hash !== h) location.replace(h);
+    try { sessionStorage.setItem('pm.tabs', JSON.stringify({ tabs: T.tabs.map(({ id, route, params }) => ({ id, route, params })), active: T.active })); } catch (e) { /* ignore */ }
+    tabSubs.forEach((f) => f());
+  }
+  let wantNewTab = false; // set while a Ctrl/middle click is being handled
+  function openTab(route, params) {
+    if (T.tabs.length >= MAX_TABS) { toast(tf('At most {n} tabs. Close one first.', { n: MAX_TABS }), 'error'); return; }
+    const x = newTab(route, params); T.tabs.push(x); T.active = x.id; tabsChanged();
+  }
   function nav(route, params, replace) {
-    const h = '#/' + route + (params && Object.keys(params).length ? '?' + encodeURIComponent(JSON.stringify(params)) : '');
-    if (replace) location.replace(h); else location.hash = h;
-    document.querySelector('.main') && document.querySelector('.main').scrollTo(0, 0);
+    if (wantNewTab) { wantNewTab = false; return openTab(route, params); }
+    const c = cur();
+    if (!replace) c.hist.push({ route: c.route, params: c.params });
+    if (c.hist.length > 50) c.hist.shift();
+    c.route = route; c.params = params || {};
+    tabsChanged();
+    const m = document.querySelector('.main[data-tab="' + c.id + '"]'); if (m) m.scrollTo(0, 0);
+  }
+  function back() {
+    const c = cur(); const p = c.hist.pop();
+    if (p) { c.route = p.route; c.params = p.params; } else { c.route = 'home'; c.params = {}; }
+    tabsChanged();
+  }
+  const isForm = (route) => /-new$/.test(route);
+  async function closeTab(id) {
+    const x = T.tabs.find((y) => y.id === id); if (!x) return;
+    if (isForm(x.route) && !(await UI.confirmBox(t('Close this tab?'), t('A bill or entry is open in this tab. Anything not saved will be lost. Use "Save as draft" to keep a bill for later.'), { okLabel: t('Close tab') }))) return;
+    const i = T.tabs.indexOf(x); T.tabs.splice(i, 1);
+    if (!T.tabs.length) T.tabs.push(newTab('home'));
+    if (T.active === id) T.active = (T.tabs[i] || T.tabs[i - 1]).id;
+    tabsChanged();
+  }
+  const selectTab = (id) => { T.active = id; tabsChanged(); };
+  // Ctrl+click / middle-click anywhere: the nav() it triggers opens a new tab
+  document.addEventListener('click', (e) => { if (e.ctrlKey || e.metaKey) { wantNewTab = true; setTimeout(() => (wantNewTab = false), 0); } }, true);
+  document.addEventListener('auxclick', (e) => {
+    if (e.button !== 1 || e.target.closest('.tabbar')) return;
+    const el = e.target.closest('button, tr.clickable, a, .feed-row, .ms, .kpi'); if (!el) return;
+    e.preventDefault(); wantNewTab = true; el.click(); wantNewTab = false;
+  });
+  document.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // no auto-scroll on middle click
+  // keyboard: Ctrl+T new tab, Ctrl+W close, Ctrl+Tab / Ctrl+Shift+Tab switch
+  document.addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || !document.querySelector('.tabbar')) return;
+    const k = e.key.toLowerCase();
+    if (k === 't') { e.preventDefault(); openTab('home'); } else if (k === 'w') { e.preventDefault(); closeTab(T.active); } else if (k === 'tab') {
+      e.preventDefault(); const i = T.tabs.findIndex((x) => x.id === T.active); const n = T.tabs.length;
+      selectTab(T.tabs[(i + (e.shiftKey ? n - 1 : 1)) % n].id);
+    }
+  });
+  function tabTitle(x) {
+    const r = x.route; const p = x.params || {};
+    const doc = (list, kind) => { const d = list.find((y) => y.id === p.id); return d ? Util.docNo(kind, d) : ''; };
+    if (r === 'sales-new') return t(p.draft ? 'Draft' : p.replaces ? 'Correct bill' : 'New sale invoice');
+    if (r === 'receipts-new') return t(p.draft ? 'Draft' : 'New stock receipt');
+    if (r === 'sales-view') return t('Bill') + ' ' + doc(Store.s.invoices, 'customer');
+    if (r === 'receipts-view') return doc(Store.s.receipts, 'vendor');
+    if (r === 'customer' || r === 'vendor') return nm(Store.party(r, p.id)) || t(r === 'customer' ? 'Customer' : 'Vendor');
+    if (r === 'stock-item') return nm(Store.item(p.id)) || t('Stock');
+    for (const g of NAV) for (const it of g.items) if (isActive(it, r)) return t(it.l);
+    if (r === 'recoveries-new') return t('Recovery');
+    if (r === 'payments-new') return t('Pay vendor');
+    return t('Dashboard');
+  }
+  function TabBar() {
+    useStore();
+    return html`<div class="tabbar" role="tablist">${T.tabs.map((x) => {
+      const on = x.id === T.active; const it = NAV.flatMap((g) => g.items).find((y) => isActive(y, x.route));
+      return html`<div key=${x.id} role="tab" aria-selected=${on} class=${'tab' + (on ? ' on' : '')} title=${tabTitle(x)}
+        onClick=${() => selectTab(x.id)} onAuxClick=${(e) => { if (e.button === 1) { e.preventDefault(); closeTab(x.id); } }}>
+        <${Ico} n=${isForm(x.route) ? 'pencil-square' : it ? it.i : 'speedometer2'} /><span class="tab-t">${tabTitle(x)}</span>
+        ${T.tabs.length > 1 && html`<button class="tab-x" title=${t('Close tab') + ' (Ctrl+W)'} onClick=${(e) => { e.stopPropagation(); closeTab(x.id); }}><${Ico} n="x" /></button>`}</div>`;
+    })}<button class="tab-new" title=${t('New tab') + ' (Ctrl+T)'} onClick=${() => openTab('home')}><${Ico} n="plus-lg" /></button></div>`;
   }
   const modalSubs = new Set();
   const openModal = (m) => modalSubs.forEach((f) => f(m));
@@ -51,14 +137,17 @@
 
   function Shell() {
     const s = useStore();
-    const [loc, setLoc] = useState(parse());
+    const [, setTick] = useState(0);
+    useEffect(() => { const f = () => setTick((n) => n + 1); tabSubs.add(f); return () => tabSubs.delete(f); }, []);
+    useEffect(() => { tabsChanged(); }, []);
+    const loc = cur();
     const [online, setOnline] = useState(navigator.onLine);
     const [modal, setModal] = useState(null);
     const [menu, setMenu] = useState(false);
-    useEffect(() => { const f = () => { setLoc(parse()); setMenu(false); }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
+    // a link or typed address changes the current tab
+    useEffect(() => { const f = () => { const p = parse(); const c = cur(); setMenu(false); if (hashOf(p.route, p.params) !== hashOf(c.route, c.params)) nav(p.route, p.params); }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
     useEffect(() => { const a = () => setOnline(true), b = () => setOnline(false); window.addEventListener('online', a); window.addEventListener('offline', b); return () => { window.removeEventListener('online', a); window.removeEventListener('offline', b); }; }, []);
     useEffect(() => { const f = (m) => setModal(m); modalSubs.add(f); return () => modalSubs.delete(f); }, []);
-    const Screen = Screens[loc.route] || Screens.home;
     const shop = s.settings.shop;
     const nowD = Store.today();
     return html`<div class=${'shell' + (menu ? ' menu-open' : '')}>
@@ -76,10 +165,11 @@
           <span class=${'net ' + (online ? 'on' : 'off')} title=${t(online ? 'Internet connected' : 'No internet — everything still works offline')}><${Ico} n=${online ? 'wifi' : 'wifi-off'} /> ${t(online ? 'Online' : 'Offline')}</span>
           <div class="lang-sw"><button class=${I18N.lang === 'ur' ? 'on' : ''} onClick=${() => I18N.setLang('ur')}>اردو</button><button class=${I18N.lang === 'en' ? 'on' : ''} onClick=${() => I18N.setLang('en')}>EN</button></div>
           <button class="icon-btn" title=${t('Theme')} onClick=${() => { Store.setSettings('theme', s.settings.theme === 'dark' ? 'light' : 'dark'); applyTheme(); }}><${Ico} n=${s.settings.theme === 'dark' ? 'sun' : 'moon'} /></button>
-          <${Btn} kind="primary" icon="plus-lg" onClick=${() => nav('sales-new')}>${t('New bill')}</${Btn}>
+          <${Btn} kind="primary" icon="plus-lg" title=${t('Opens in a new tab when a bill is already open')} onClick=${() => (isForm(loc.route) ? openTab('sales-new') : nav('sales-new'))}>${t('New bill')}</${Btn}>
           <button class="icon-btn" title=${t('Lock')} onClick=${() => App.lock()}><${Ico} n="lock" /></button>
         </header>
-        <main class="main" key=${loc.route + JSON.stringify(loc.params)}>${Screen(loc.params)}</main>
+        <${TabBar} />
+        ${T.tabs.map((x) => { const Screen = Screens[x.route] || Screens.home; return html`<main class="main" data-tab=${x.id} key=${x.id + ':' + x.route + JSON.stringify(x.params)} hidden=${x.id !== T.active}>${Screen(x.params)}</main>`; })}
       </div>
       ${modal && modal.type === 'party' && html`<${Screens.PartyForm} kind=${modal.kind} value=${modal.value} onSaved=${modal.onSaved} onClose=${() => setModal(null)} />`}
       ${modal && modal.type === 'payment' && html`<${Screens.PaymentModal} id=${modal.id} onClose=${() => setModal(null)} />`}
@@ -140,7 +230,8 @@
     return html`${inside ? html`<${Shell} />` : html`<${Login} onIn=${enter} />`}<${Toasts} /><${Dialogs} />`;
   }
   window.App = {
-    nav, applyTheme, lock: () => {},
+    nav, back, openTab, closeTab, applyTheme, lock: () => {},
+    get tabs() { return T.tabs.map((x) => ({ id: x.id, route: x.route, params: x.params, active: x.id === T.active })); },
     openPartyForm: (kind, value, onSaved) => openModal({ type: 'party', kind, value, onSaved }),
     openPayment: (id) => openModal({ type: 'payment', id }),
   };
