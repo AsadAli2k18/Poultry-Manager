@@ -298,3 +298,6 @@ textarea.inp{padding:8px 11px}
 .warn-box{margin-top:10px;padding:8px 12px;border-radius:8px;background:var(--yellow-bg);color:var(--yellow)}
 .bio-status{display:flex;align-items:center;gap:8px;margin:10px 0}
 .bio-status .dot{width:10px;height:10px;border-radius:50%;background:var(--tx3)}.bio-status .dot.on{background:var(--green)}
+/* update ready */
+.update-bar{display:flex;gap:10px;align-items:center;padding:8px 18px;background:var(--brand-lt);color:var(--brand-dk);border-bottom:1px solid var(--bd);font-weight:600}
+.update-bar>.bi{font-size:1.2rem;color:var(--brand)}

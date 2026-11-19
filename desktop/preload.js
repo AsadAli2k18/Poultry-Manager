@@ -33,6 +33,13 @@ contextBridge.exposeInMainWorld('PM', {
   printReceipt: (html, opts) => ipcRenderer.invoke('print:receipt', html, opts),
   savePdf: (html, opts) => ipcRenderer.invoke('print:pdf', html, opts),
   printers: () => ipcRenderer.invoke('print:printers'),
+  // automatic updates
+  update: {
+    status: () => ipcRenderer.invoke('update:status'),
+    check: () => ipcRenderer.invoke('update:check'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onEvent: (fn) => { const h = (_e, st) => fn(st); ipcRenderer.on('update:event', h); return () => ipcRenderer.removeListener('update:event', h); },
+  },
   // fingerprint scanner (optional)
   bio: {
     configure: (cfg) => ipcRenderer.invoke('bio:configure', cfg),

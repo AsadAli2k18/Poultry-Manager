@@ -7,13 +7,13 @@
     { value: 'shop', label: 'Shop profile', icon: 'shop-window' }, { value: 'print', label: 'Print designer', icon: 'printer' },
     { value: 'backup', label: 'Backup', icon: 'cloud-arrow-up' }, { value: 'categories', label: 'Expense categories', icon: 'tags' },
     { value: 'methods', label: 'Payment methods', icon: 'credit-card' }, { value: 'display', label: 'Language & display', icon: 'translate' },
-    { value: 'bio', label: 'Fingerprint scanner', icon: 'fingerprint' },
+    { value: 'bio', label: 'Fingerprint scanner', icon: 'fingerprint' }, { value: 'updates', label: 'Updates', icon: 'arrow-up-circle' },
     { value: 'security', label: 'Password', icon: 'shield-lock' }, { value: 'audit', label: 'Activity log', icon: 'clock-history' },
   ];
   function Settings({ tab: tab0 }) {
     useStore();
     const [tab, setTab] = useState(tab0 || 'shop');
-    const V = { shop: Shop, print: PrintDesigner, backup: Backup, categories: () => html`<${Lookup} kind="categories" />`, methods: () => html`<${Lookup} kind="methods" />`, display: Display, bio: () => html`<${Bio.Settings} />`, security: Security, audit: Audit }[tab];
+    const V = { shop: Shop, print: PrintDesigner, backup: Backup, categories: () => html`<${Lookup} kind="categories" />`, methods: () => html`<${Lookup} kind="methods" />`, display: Display, bio: () => html`<${Bio.Settings} />`, updates: () => html`<${Updates.Settings} />`, security: Security, audit: Audit }[tab];
     return html`<${Page} title=${t('Settings')} icon="gear"><div class="settings"><nav class="set-nav">${TABS.map((x) => html`<button class=${tab === x.value ? 'on' : ''} onClick=${() => setTab(x.value)}><${Ico} n=${x.icon} /> ${t(x.label)}</button>`)}</nav>
       <div class="set-body"><${V} /></div></div></${Page}>`;
   }

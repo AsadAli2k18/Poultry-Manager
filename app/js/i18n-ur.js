@@ -170,6 +170,16 @@ window.I18N_UR = {
   'Windows default printer': 'ونڈوز کا بنیادی پرنٹر',
   'not found': 'نہیں ملا',
   'Print straight away (no print window)': 'سیدھا پرنٹ کریں (پرنٹ ونڈو کے بغیر)',
+  // updates
+  'Restart to install the update?': 'اپڈیٹ انسٹال کرنے کے لیے ایپ دوبارہ کھولیں؟', 'A bill or entry is open. Anything not saved will be lost. Use "Save as draft" to keep a bill.': 'ایک بل یا اندراج کھلا ہے۔ جو محفوظ نہیں ہوا وہ ضائع ہو جائے گا۔ بل رکھنے کے لیے "ڈرافٹ محفوظ کریں" استعمال کریں۔',
+  'Restart now': 'ابھی دوبارہ کھولیں', 'Update {v} is ready. It installs when you restart the app.': 'نیا ورژن {v} تیار ہے۔ ایپ دوبارہ کھولنے پر انسٹال ہو جائے گا۔',
+  'Later': 'بعد میں', 'Restart to install': 'دوبارہ کھول کر انسٹال کریں', 'Updates work in the installed app only.': 'اپڈیٹ صرف انسٹال شدہ ایپ میں کام کرتی ہے۔',
+  'Updates are not available here.': 'یہاں اپڈیٹ دستیاب نہیں۔', 'Checks for updates shortly after the app opens.': 'ایپ کھلنے کے تھوڑی دیر بعد اپڈیٹ دیکھی جاتی ہے۔',
+  'Checking for updates…': 'اپڈیٹ دیکھی جا رہی ہے…', 'You have the latest version.': 'آپ کے پاس تازہ ترین ورژن ہے۔',
+  'Downloading version {v}… {p}%': 'ورژن {v} ڈاؤن لوڈ ہو رہا ہے… {p}%', 'Version {v} is ready. Restart the app to install it.': 'ورژن {v} تیار ہے۔ انسٹال کرنے کے لیے ایپ دوبارہ کھولیں۔',
+  'Could not check for updates. This is normal without internet; it tries again later.': 'اپڈیٹ نہیں دیکھی جا سکی۔ انٹرنیٹ نہ ہو تو ایسا ہوتا ہے؛ بعد میں دوبارہ کوشش ہو گی۔',
+  'Updates': 'اپڈیٹس', 'The app checks GitHub for a new version when it opens and every few hours. New versions download in the background; a backup is taken before installing. Your data is always kept.': 'ایپ کھلنے پر اور ہر چند گھنٹے بعد نیا ورژن دیکھتی ہے۔ نیا ورژن پیچھے ڈاؤن لوڈ ہوتا ہے اور انسٹال سے پہلے بیک اپ لیا جاتا ہے۔ آپ کا ڈیٹا ہمیشہ محفوظ رہتا ہے۔',
+  'This version': 'موجودہ ورژن', 'Check for updates': 'اپڈیٹ دیکھیں',
   // ID card and fingerprint
   'Customer found by fingerprint': 'انگوٹھے کے نشان سے گاہک مل گیا',
   'Fingerprint not recognised. Search by name, or enroll this customer.': 'انگلی کا نشان نہیں پہچانا گیا۔ نام سے تلاش کریں، یا اس گاہک کا نشان درج کریں۔',

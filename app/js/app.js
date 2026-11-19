@@ -169,6 +169,7 @@
           <${Btn} kind="primary" icon="plus-lg" title=${t('Opens in a new tab when a bill is already open')} onClick=${() => (isForm(loc.route) ? openTab('sales-new') : nav('sales-new'))}>${t('New bill')}</${Btn}>
           <button class="icon-btn" title=${t('Lock')} onClick=${() => App.lock()}><${Ico} n="lock" /></button>
         </header>
+        <${Updates.Bar} />
         <${TabBar} />
         ${T.tabs.map((x) => { const Screen = Screens[x.route] || Screens.home; return html`<main class="main" data-tab=${x.id} key=${x.id + ':' + x.route + JSON.stringify(x.params)} hidden=${x.id !== T.active}>${Screen(x.params)}</main>`; })}
       </div>

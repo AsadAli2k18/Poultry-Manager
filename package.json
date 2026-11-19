@@ -14,19 +14,21 @@
     "demo": "node tools/serve.js",
     "icon": "electron tools/make-icon.js",
     "secugen": "node tools/secugen.js",
-    "screenshots": "electron tools/screenshots.js"
+    "screenshots": "electron tools/screenshots.js",
+    "release": "node tools/release.js"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",
-    "electron": "^33.2.0",
-    "electron-builder": "^26.18.0",
     "@fontsource/noto-nastaliq-urdu": "^5.1.0",
     "bootstrap-icons": "^1.11.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^26.18.0",
     "htm": "^3.1.1",
     "preact": "^10.24.3"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^11.10.0",
+    "electron-updater": "^6.8.11"
   },
   "build": {
     "appId": "pk.poultrymanager.app",
@@ -36,6 +38,14 @@
       "app/**/*",
       "desktop/**/*",
       "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "AsadAli2k18",
+        "repo": "Poultry-Manager",
+        "releaseType": "release"
+      }
     ],
     "asarUnpack": [
       "desktop/vendor/**"

@@ -85,6 +85,24 @@ Nothing else is needed: no XAMPP, no browser, no internet.
 
 Both are optional. Without them, every screen works the same.
 
+## Updates
+
+Installed apps update themselves from this repository's [Releases](https://github.com/AsadAli2k18/Poultry-Manager/releases):
+
+1. When the app opens, and every 6 hours, it checks for a newer release. Without internet it simply tries again later.
+2. A new version downloads in the background, and a safety backup of the data is taken.
+3. A bar offers **Restart to install**. **Later** installs it the next time the app is closed.
+
+**Settings → Updates** shows the version and has **Check for updates**. Only published releases reach the shop. Commits and pushes on their own never do.
+
+To publish an update:
+
+```bash
+npm run release -- 1.1.1 "What changed"
+```
+
+This sets the version, commits and pushes, builds the installer, and uploads it with `latest.yml` to a new GitHub Release.
+
 ## Where the data lives
 
 | What | Where |
@@ -117,6 +135,7 @@ npm start              # run the app
 npm test               # 120 end-to-end checks of the real app on a throwaway data folder
 npm run screenshots    # refresh docs/screenshots from the sample shop
 npm run dist           # build dist/PoultryManager-Setup-<version>.exe
+npm run release -- 1.1.1 "notes"   # publish an update to every installed app
 ```
 
 | Path | Contents |
@@ -126,6 +145,7 @@ npm run dist           # build dist/PoultryManager-Setup-<version>.exe
 | `desktop/backup.js` | Scheduler, verified backups, keep-N, USB copy, restore with a safety copy |
 | `desktop/escpos.js` | Direct receipt printing: renders the bill at 203 dpi and sends ESC/POS raster + cut |
 | `desktop/biometric.js` | Fingerprint scanner helper process (SecuGen), listening loop, 1:N matching, simulator |
+| `desktop/updater.js` | Automatic updates from GitHub Releases (electron-updater) |
 | `desktop/preload.js` | The only functions the screens can call (`window.PM`) |
 | `app/js/store.js` | Data layer: stock, balances, ledgers and statuses computed from the entries; every change is on disk before the screen moves on |
 | `app/js/print.js` | Bills, receipts and reports for paper and thermal printers |

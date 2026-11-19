@@ -6,7 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const { Store } = require('./db');
 const { Backups } = require('./backup');
+const APP_VERSION = require('../package.json').version; // app.getVersion() is Electron's own number when run from source
 const { Biometrics } = require('./biometric');
+const { setupUpdates } = require('./updater');
 
 // one window only: two windows writing the same data would overwrite each other
 const primary = app.requestSingleInstanceLock();
@@ -17,6 +19,7 @@ let store = null;
 let backups = null;
 let dirs = null;
 let bio = null; // fingerprint scanner (optional)
+let updates = null; // automatic updates from GitHub Releases
 
 function setupData() {
   const root = process.env.PM_DATA_DIR || path.join(app.getPath('documents'), 'PoultryManager');
@@ -35,7 +38,7 @@ function onSync(ch, fn) {
 }
 
 function registerIpc() {
-  onSync('db:load', () => ({ state: store.load(), info: { dataFile: store.file, root: dirs.root, defaultBackupFolder: dirs.backups, version: app.getVersion() } }));
+  onSync('db:load', () => ({ state: store.load(), info: { dataFile: store.file, root: dirs.root, defaultBackupFolder: dirs.backups, version: APP_VERSION } }));
   onSync('db:commit', (changes) => store.commit(changes));
   onSync('db:replaceAll', (state) => { store.replaceAll(state); return true; });
   onSync('db:putPhoto', (id, data) => { store.putPhoto(id, data); return true; });
@@ -44,7 +47,7 @@ function registerIpc() {
   onSync('auth:check', (pw) => store.checkPassword(pw));
   onSync('auth:set', (o, n) => store.setPassword(o, n));
   onSync('backup:log', () => backups.log());
-  onSync('app:info', () => ({ dataFile: store.file, root: dirs.root, defaultBackupFolder: dirs.backups, version: app.getVersion() }));
+  onSync('app:info', () => ({ dataFile: store.file, root: dirs.root, defaultBackupFolder: dirs.backups, version: APP_VERSION }));
 
   ipcMain.handle('backup:now', (_e, kind, note) => backups.run(kind === 'safety' ? 'safety' : 'manual', note || ''));
   ipcMain.handle('backup:usb', () => backups.usbDrives());
@@ -74,6 +77,11 @@ function registerIpc() {
   ipcMain.handle('bio:match', (_e, a, b) => bio.match(a, b));
   ipcMain.handle('bio:pause', (_e, on) => bio.pause(on));
   ipcMain.handle('bio:sim', (_e, what, v) => (what === 'plug' ? bio.simPlug(v) : bio.simPut(v)));
+
+  // Updates: status for the screens, check on request, restart to install
+  ipcMain.handle('update:status', () => (updates ? updates.status() : { state: 'off' }));
+  ipcMain.handle('update:check', () => (updates ? updates.check() : { state: 'off' }));
+  ipcMain.handle('update:install', () => updates && updates.install());
 
   // Printing. The page is written to a temp file so fonts and styles load offline, then printed from a hidden window.
   // Page size comes from the design's @page (a thermal bill is one page exactly as tall as the bill).
@@ -161,6 +169,7 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   backups.start();
+  if (!process.env.PM_NO_UPDATE) updates = setupUpdates({ send: (st) => { if (win && !win.isDestroyed()) win.webContents.send('update:event', st); }, backup: (note) => backups.run('safety', note) });
 });
 app.on('window-all-closed', () => app.quit());
 app.on('will-quit', () => { if (bio) bio.stop(); if (backups) backups.stop(); if (store) store.close(); });
