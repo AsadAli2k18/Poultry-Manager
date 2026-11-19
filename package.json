@@ -1,6 +1,6 @@
 {
   "name": "poultry-manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Poultry Manager - offline desktop software for a poultry and meat shop",
   "main": "desktop/main.js",
   "author": "AASolutions (0305-8592435)",
