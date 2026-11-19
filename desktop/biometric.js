@@ -112,7 +112,7 @@ class SecuGen {
     const file = path.join(os.tmpdir(), 'poultry-bio-helper.ps1');
     fs.writeFileSync(file, HELPER, 'utf8');
     const exe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-    this.proc = spawn(exe, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file], { env: { ...process.env, PM_SG_DIR: this.dir }, windowsHide: true });
+    this.proc = spawn(exe, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file], { env: { ...process.env, PM_SG_DIR: this.dir }, cwd: os.tmpdir(), windowsHide: true }); // cwd: the library writes a small settings file in its working folder
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', (d) => {
       this.buf += d; let i;

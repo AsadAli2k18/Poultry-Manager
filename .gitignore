@@ -4,3 +4,4 @@ backups/
 *.log
 print-samples/
 desktop/vendor/
+.sgfplib_config.ini
