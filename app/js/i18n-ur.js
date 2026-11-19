@@ -170,6 +170,12 @@ window.I18N_UR = {
   'Windows default printer': 'ونڈوز کا بنیادی پرنٹر',
   'not found': 'نہیں ملا',
   'Print straight away (no print window)': 'سیدھا پرنٹ کریں (پرنٹ ونڈو کے بغیر)',
+  'How to print': 'پرنٹ کا طریقہ',
+  'Direct (receipt printer)': 'براہِ راست (رسید پرنٹر)',
+  'Windows driver': 'ونڈوز ڈرائیور',
+  'Sent straight to the receipt printer as a picture, with no print window. Recommended.': 'بل تصویر کی صورت میں سیدھا رسید پرنٹر کو جاتا ہے، پرنٹ ونڈو کے بغیر۔ یہی بہتر ہے۔',
+  'Uses the Windows driver. Some receipt printers then print blank slips.': 'ونڈوز ڈرائیور استعمال ہوتا ہے۔ بعض رسید پرنٹر اس طرح خالی پرچی نکالتے ہیں۔',
+  'Cut the paper after each bill': 'ہر بل کے بعد کاغذ کاٹیں',
   'Each document can use its own printer, e.g. thermal for bills and A4 for reports. To save a PDF, use "Save as PDF" in the print preview.': 'ہر دستاویز کا اپنا پرنٹر ہو سکتا ہے، مثلاً بل کے لیے تھرمل اور رپورٹ کے لیے A4۔ پی ڈی ایف کے لیے پرنٹ پیش نظارہ میں "پی ڈی ایف بنائیں" دبائیں۔',
   'This bill': 'یہ بل',
   // tabs and drafts

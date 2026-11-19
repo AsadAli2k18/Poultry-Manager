@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('PM', {
   onBackup: (fn) => { const h = (_e, entry) => fn(entry); ipcRenderer.on('backup:done', h); return () => ipcRenderer.removeListener('backup:done', h); },
   // printing
   print: (html, opts) => ipcRenderer.invoke('print:html', html, opts),
+  printReceipt: (html, opts) => ipcRenderer.invoke('print:receipt', html, opts),
   savePdf: (html, opts) => ipcRenderer.invoke('print:pdf', html, opts),
   printers: () => ipcRenderer.invoke('print:printers'),
   info: () => call('app:info'),

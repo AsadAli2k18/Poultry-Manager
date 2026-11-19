@@ -77,5 +77,11 @@ App.nav('sales-view', { id: inv.id }); await wait(300);
 const pb = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Print'); if (pb) pb.click(); await wait(500);
 ok('print dialog has per-bill balance checkbox', /Show balance on this bill/.test(document.body.innerText));
 ok('print dialog has Save as PDF', /Save as PDF/.test(document.body.innerText));
+ok('receipt print is direct by default', /Print now/.test(document.body.innerText) && Print.device(Print.cfgFor('sale', { paper: 'T80' })).direct === true);
+// direct receipt printing: PM_RECEIPT_DIR (set by the runner) saves the picture instead of printing
+for (const [paper, dots] of [['T80', 576], ['T58', 384]]) {
+  const r = await Print.printHtml(Print.build('sale', inv, { paper, lang: 'ur' }), { printer: 'Check printer', direct: true });
+  ok('direct receipt ' + paper + ': full print width', r && r.ok && r.dots.width === dots && r.dots.height > 600 && r.bytes > 10000, r);
+}
 out.failed = Object.keys(out.checks).filter((k) => out.checks[k] !== "ok").map((k) => k + ": " + out.checks[k]);
 return out;

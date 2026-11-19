@@ -372,6 +372,15 @@ td.it{word-break:break-word;width:100%}
   };
   /** opts: { printer, silent } from the print designer */
   async function printHtml(html, opts = {}) {
+    const th = /\/\*THERMAL:([\d.]+)\*\//.exec(html);
+    // Receipt printer, direct: the bill as a picture sent straight to the printer (works where the driver prints blank slips)
+    if (th && opts.direct !== false && window.PM && window.PM.printReceipt) {
+      const P = Object.values(PAPER).find((p) => p.thermal && p.w === +th[1]) || PAPER.T80;
+      const r = await window.PM.printReceipt(html, { printer: opts.printer || '', cut: opts.cut !== false, contentMm: P.content });
+      if (r && r.ok) UI.toast(I18N.t('Sent to printer') + (opts.printer ? ' — ' + opts.printer : ''), 'success');
+      else UI.toast(I18N.t('Print') + ': ' + ((r && r.reason) || 'failed'), 'error');
+      return r;
+    }
     html = await fitHeight(html);
     // Desktop app: Windows printing through Electron (print dialog, or straight to the chosen printer when silent)
     if (window.PM && window.PM.print) {
@@ -398,7 +407,7 @@ td.it{word-break:break-word;width:100%}
     else if (r && r.reason && !/cancel/i.test(r.reason)) UI.toast('PDF: ' + r.reason, 'error');
     return r;
   }
-  const device = (cfg) => ({ printer: cfg.printer || '', silent: !!cfg.silent });
+  const device = (cfg) => ({ printer: cfg.printer || '', silent: !!cfg.silent, direct: cfg.printMode !== 'driver', cut: cfg.cut !== false });
   window.Print = {
     build, printHtml, savePdf, fitHeight, esc, cfgFor, device, isThermal, PAPER, fmtDate, fmtTime,
     previewWidth: (paper) => (isThermal(paper) ? pxOf(PAPER[paper].w) : { A4: 794, A5: 560, A6: 400 }[paper] || 560),

@@ -218,7 +218,7 @@
       <span class="grow"></span>
       <${Btn} kind="ghost" onClick=${onClose}>${t('Back')}</${Btn}>
       <${Btn} icon="file-earmark-pdf" onClick=${run(() => Print.savePdf(doc, pdfName()))} disabled=${busy}>${t('Save as PDF')}</${Btn}>
-      <${Btn} kind="primary" icon="printer" onClick=${run(() => Print.printHtml(doc, Print.device(cfg)))} disabled=${busy}>${cfg.silent ? t('Print now') : t('Print')}</${Btn}>`}>
+      <${Btn} kind="primary" icon="printer" onClick=${run(() => Print.printHtml(doc, Print.device(cfg)))} disabled=${busy}>${cfg.silent || (thermal && cfg.printMode !== 'driver') ? t('Print now') : t('Print')}</${Btn}>`}>
       ${thermal && html`<div class="muted small" style="text-align:center">${t('Actual size')} — ${paper.slice(1)} mm${cfg.printer ? ' · ' + cfg.printer : ''}</div>`}
       <${FitFrame} doc=${doc} width=${Print.previewWidth(cfg.paper)} auto=${thermal} />
     </${Modal}>`;

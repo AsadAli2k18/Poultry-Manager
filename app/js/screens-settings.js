@@ -120,7 +120,10 @@
             ${(printers || []).map((p) => html`<option value=${p.name}>${p.displayName}</option>`)}
             ${cfg.printer && printers && !printers.some((p) => p.name === cfg.printer) && html`<option value=${cfg.printer}>${cfg.printer} — ${t('not found')}</option>`}
           </select></${Field}>
-        <label class="check"><input type="checkbox" checked=${!!cfg.silent} onChange=${(e) => set('silent', e.target.checked)} /> <span>${t('Print straight away (no print window)')}</span></label>
+        ${thermal && html`<${Field} label=${t('How to print')} hint=${cfg.printMode === 'driver' ? t('Uses the Windows driver. Some receipt printers then print blank slips.') : t('Sent straight to the receipt printer as a picture, with no print window. Recommended.')}>
+          <${Seg} value=${cfg.printMode === 'driver' ? 'driver' : 'direct'} onChange=${(v) => set('printMode', v)} options=${[{ value: 'direct', label: t('Direct (receipt printer)') }, { value: 'driver', label: t('Windows driver') }]} /></${Field}>`}
+        ${thermal && cfg.printMode !== 'driver' && html`<label class="check"><input type="checkbox" checked=${cfg.cut !== false} onChange=${(e) => set('cut', e.target.checked)} /> <span>${t('Cut the paper after each bill')}</span></label>`}
+        ${!(thermal && cfg.printMode !== 'driver') && html`<label class="check"><input type="checkbox" checked=${!!cfg.silent} onChange=${(e) => set('silent', e.target.checked)} /> <span>${t('Print straight away (no print window)')}</span></label>`}
         <p class="muted small">${t('Each document can use its own printer, e.g. thermal for bills and A4 for reports. To save a PDF, use "Save as PDF" in the print preview.')}</p>
       </${Card}>
       </div>

@@ -232,7 +232,7 @@
       // thermal receipt (paper T80 / T58) and shared options
       showBalance: true, design: 'standard', showShopName: true, showAddress: true, showOwners: true, headerNote_ur: '', headerNote_en: '',
       colItem: true, colQty: true, colRate: true, colAmount: true, lineStyle: 'auto', bold: true,
-      billPrefix: '', dateFmt: 'd/m/yy', timeFmt: '24h', note_ur: '', note_en: '', printer: '', silent: false };
+      billPrefix: '', dateFmt: 'd/m/yy', timeFmt: '24h', note_ur: '', note_en: '', printer: '', silent: false, printMode: 'direct', cut: true };
     return {
       sale: { ...base },
       receipt: { ...base, template: 'modern', paper: 'A5', accent: '#0E7C74', footer_ur: 'مال وصول کیا', footer_en: 'Goods received' },

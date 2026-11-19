@@ -95,6 +95,15 @@ function registerIpc() {
     if (opts.printer) o.deviceName = opts.printer; // empty: Windows' default printer
     pw.webContents.print(o, (ok, reason) => resolve({ ok, reason }));
   })));
+  // Receipt printers: the bill as a picture in the printer's own language (ESC/POS), sent straight to it. See escpos.js.
+  ipcMain.handle('print:receipt', async (_e, html, opts = {}) => {
+    try {
+      let printer = opts.printer;
+      if (!printer) printer = ((await win.webContents.getPrintersAsync()).find((p) => p.isDefault) || {}).name;
+      if (!printer) return { ok: false, reason: 'No printer selected' };
+      return await require('./escpos').printReceipt(html, { printer, cut: opts.cut !== false, contentMm: +opts.contentMm || 72 });
+    } catch (e) { return { ok: false, reason: e.message || String(e) }; }
+  });
   // Save as PDF at the design's exact page size. PM_PDF_DIR (checks only) saves without asking.
   ipcMain.handle('print:pdf', async (_e, html, opts = {}) => {
     const name = String(opts.name || 'Bill').replace(/[^\w\- .]+/g, '_') + '.pdf';
