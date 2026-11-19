@@ -9,7 +9,9 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', shell: process.platform === 'win32', ...opts });
+const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: opts.quiet ? 'pipe' : 'inherit', ...opts });
+// npx is a .cmd file on Windows: it needs the shell (its arguments here have no spaces)
+const npx = (args, opts) => run(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { shell: process.platform === 'win32', ...opts });
 const [version, notes] = process.argv.slice(2);
 if (!/^\d+\.\d+\.\d+$/.test(version || '')) { console.error('usage: npm run release -- <x.y.z> "notes"'); process.exit(2); }
 
@@ -25,7 +27,7 @@ pkg.version = version;
 fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n');
 run('git', ['commit', '-am', `Release ${version}`]);
 run('git', ['push', 'origin', 'HEAD']);
-run('npx', ['electron-builder', '--win', '--publish', 'always'], { env: { ...process.env, GH_TOKEN: token } });
+npx(['electron-builder', '--win', '--publish', 'always'], { env: { ...process.env, GH_TOKEN: token } });
 const repo = pkg.build.publish[0];
 if (notes) run('gh', ['release', 'edit', 'v' + version, '--repo', `${repo.owner}/${repo.repo}`, '--notes', notes + '\n\nDeveloped by AASolutions · 0305-8592435']);
 console.log(`\nReleased ${version}: https://github.com/${repo.owner}/${repo.repo}/releases/tag/v${version}`);
