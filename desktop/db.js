@@ -7,15 +7,15 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
-const SCHEMA_VERSION = 2; // 2: drafts
+const SCHEMA_VERSION = 3; // 2: drafts, 3: CNIC column + fingerprints
 
 // table -> extra columns: [name, SQL type, (record) => value]
 const num = (v) => (v == null || v === '' ? null : +v);
 const docTotal = (r) => Math.round((r.lines || []).reduce((s, l) => s + (+l.qty || 0) * (+l.rate || 0), 0));
 const TABLES = {
   items: [['name_ur', 'TEXT', (r) => r.name_ur], ['name_en', 'TEXT', (r) => r.name_en], ['unit', 'TEXT', (r) => r.unit], ['rate', 'REAL', (r) => num(r.rate)], ['opening', 'REAL', (r) => num(r.opening)], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
-  customers: [['code', 'TEXT', (r) => r.code], ['name_ur', 'TEXT', (r) => r.name_ur], ['name_en', 'TEXT', (r) => r.name_en], ['phone', 'TEXT', (r) => r.phone], ['opening', 'REAL', (r) => num(r.opening)], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
-  vendors: [['code', 'TEXT', (r) => r.code], ['name_ur', 'TEXT', (r) => r.name_ur], ['name_en', 'TEXT', (r) => r.name_en], ['phone', 'TEXT', (r) => r.phone], ['opening', 'REAL', (r) => num(r.opening)], ['own_farm', 'INTEGER', (r) => (r.own_farm ? 1 : 0)], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
+  customers: [['code', 'TEXT', (r) => r.code], ['name_ur', 'TEXT', (r) => r.name_ur], ['name_en', 'TEXT', (r) => r.name_en], ['phone', 'TEXT', (r) => r.phone], ['cnic', 'TEXT', (r) => (r.cnic || '').replace(/\D/g, '') || null], ['opening', 'REAL', (r) => num(r.opening)], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
+  vendors: [['code', 'TEXT', (r) => r.code], ['name_ur', 'TEXT', (r) => r.name_ur], ['name_en', 'TEXT', (r) => r.name_en], ['phone', 'TEXT', (r) => r.phone], ['cnic', 'TEXT', (r) => (r.cnic || '').replace(/\D/g, '') || null], ['opening', 'REAL', (r) => num(r.opening)], ['own_farm', 'INTEGER', (r) => (r.own_farm ? 1 : 0)], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
   categories: [['name_ur', 'TEXT', (r) => r.name_ur], ['name_en', 'TEXT', (r) => r.name_en], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
   methods: [['name_ur', 'TEXT', (r) => r.name_ur], ['name_en', 'TEXT', (r) => r.name_en], ['is_cash', 'INTEGER', (r) => (r.cash ? 1 : 0)], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
   invoices: [['no', 'INTEGER', (r) => r.no], ['date', 'TEXT', (r) => r.date], ['party_id', 'TEXT', (r) => r.customerId], ['total', 'REAL', docTotal], ['status', 'TEXT', (r) => r.status], ['replaces', 'TEXT', (r) => r.replaces || null]],
@@ -25,6 +25,8 @@ const TABLES = {
   expenses: [['no', 'INTEGER', (r) => r.no], ['date', 'TEXT', (r) => r.date], ['category_id', 'TEXT', (r) => r.categoryId], ['amount', 'REAL', (r) => num(r.amount)], ['method', 'TEXT', (r) => r.method], ['status', 'TEXT', (r) => r.status]],
   // unfinished bills: no number, no effect on stock or balances until saved as a real bill
   drafts: [['kind', 'TEXT', (r) => r.kind], ['date', 'TEXT', (r) => r.date], ['party_id', 'TEXT', (r) => r.partyId || null], ['total', 'REAL', docTotal], ['saved_at', 'TEXT', (r) => r.savedAt]],
+  // fingerprint templates (never pictures), one record per enrolled finger; removing one keeps it as inactive
+  biometrics: [['party_id', 'TEXT', (r) => r.partyId], ['finger', 'TEXT', (r) => r.finger], ['sdk', 'TEXT', (r) => r.sdk], ['quality', 'INTEGER', (r) => num(r.quality)], ['enrolled_at', 'TEXT', (r) => r.enrolledAt], ['active', 'INTEGER', (r) => (r.active ? 1 : 0)]],
   audit: [['at', 'TEXT', (r) => r.at], ['action', 'TEXT', (r) => r.action], ['ref', 'TEXT', (r) => r.ref]],
 };
 const DOC_TABLES = { invoices: 'customerId', receipts: 'vendorId' };
@@ -87,7 +89,16 @@ class Store {
       db.exec(`CREATE TABLE IF NOT EXISTS drafts (id TEXT PRIMARY KEY, ${extra}, data TEXT NOT NULL, updated_at TEXT NOT NULL)`);
       this.setMeta('schema_version', '2');
     }
-    // later schema changes go here: if (v < 3) { ... }
+    if (v < 3) {
+      db.transaction(() => {
+        for (const t of ['customers', 'vendors']) if (!db.prepare(`PRAGMA table_info(${t})`).all().some((c) => c.name === 'cnic')) db.exec(`ALTER TABLE ${t} ADD COLUMN cnic TEXT`);
+        const extra = TABLES.biometrics.map(([n, ty]) => `${n} ${ty}`).join(', ');
+        db.exec(`CREATE TABLE IF NOT EXISTS biometrics (id TEXT PRIMARY KEY, ${extra}, data TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+        db.exec('CREATE INDEX IF NOT EXISTS ix_bio_party ON biometrics(party_id)');
+        this.setMeta('schema_version', '3');
+      })();
+    }
+    // later schema changes go here: if (v < 4) { ... }
   }
 
   prepare() {
@@ -158,6 +169,13 @@ class Store {
       this.setJSON('settings', state.settings);
       this.setJSON('counters', state.counters || {});
     })();
+  }
+
+  // enrolled fingers of active customers, for matching a scan
+  biometricGallery() {
+    const active = new Set(this.db.prepare('SELECT id FROM customers WHERE active = 1').all().map((r) => r.id));
+    return this.db.prepare('SELECT data FROM biometrics WHERE active = 1').all().map((r) => JSON.parse(r.data)).filter((b) => active.has(b.partyId))
+      .map((b) => ({ partyId: b.partyId, finger: b.finger, templates: b.templates || [] }));
   }
 
   putPhoto(id, data) { this.db.prepare('INSERT OR REPLACE INTO photos (id, data, created_at) VALUES (?, ?, ?)').run(id, data, new Date().toISOString()); }

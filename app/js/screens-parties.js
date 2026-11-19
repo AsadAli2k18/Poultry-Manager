@@ -14,7 +14,7 @@
     const [q, setQ] = useState(''); const [show, setShow] = useState('active');
     const list = (kind === 'customer' ? s.customers : s.vendors);
     const rows = list.filter((p) => (show === 'all' ? true : show === 'due' ? Store.balance(kind, p.id) !== 0 : p.active))
-      .filter((p) => Util.matches(q, p.name_ur, p.name_en, p.code, p.phone))
+      .filter((p) => Util.matches(q, p.name_ur, p.name_en, p.code, p.phone, p.cnic, p.cnic && Util.fmtCnic(p.cnic)))
       .map((p) => ({ ...p, bal: Store.balance(kind, p.id) }))
       .sort((a, b) => b.bal - a.bal);
     const tot = rows.reduce((a, r) => a + r.bal, 0);
@@ -25,11 +25,11 @@
         <${Kpi} icon="exclamation-diamond" tone="yellow" label=${t('With balance')} value=${list.filter((p) => Store.balance(kind, p.id) !== 0).length} />
       </div>
       <${Card} pad=${false}>
-        <div class="filters"><${Search} value=${q} onInput=${setQ} placeholder=${t('Search by name, ID or phone')} />
+        <div class="filters"><${Search} value=${q} onInput=${setQ} placeholder=${t('Search by name, ID, phone or CNIC')} />
           <${Seg} value=${show} onChange=${setShow} options=${[{ value: 'active', label: t('Active') }, { value: 'due', label: t('With balance') }, { value: 'all', label: t('All') }]} /></div>
         <${Table} onRow=${(p) => nav(M.route, { id: p.id })} rowCls=${(p) => (p.active ? '' : 'row-cancel')} columns=${[
           { label: t('ID'), render: (p) => html`<span class="num muted">${p.code}</span>` },
-          { label: t('Name'), render: (p) => html`<b>${nm(p)}</b> ${p.own_farm ? html`<span class="badge badge-teal">${t('Own farm')}</span>` : ''}<div class="muted small">${I18N.lang === 'ur' ? p.name_en : p.name_ur}</div>` },
+          { label: t('Name'), render: (p) => html`<b>${nm(p)}</b> ${kind === 'customer' && Store.fingersOf(p.id).length ? html`<span class="tx-brand" title=${t('Fingerprint enrolled')}><${Ico} n="fingerprint" /></span>` : ''} ${p.own_farm ? html`<span class="badge badge-teal">${t('Own farm')}</span>` : ''}<div class="muted small">${I18N.lang === 'ur' ? p.name_en : p.name_ur}</div>` },
           { label: t('Phone'), render: (p) => html`<span class="num">${p.phone}</span>` },
           { label: t('Address'), render: (p) => html`<span class="small">${p.address}</span>` },
           { label: t('Balance'), num: true, render: (p) => html`<b><${Num} v=${p.bal} /></b>` },
@@ -118,6 +118,7 @@
           { label: t('Days'), num: true, render: (r) => html`<span class="num">${Math.round((new Date(Store.today()) - new Date(r.d.date)) / 864e5)}</span>` },
           { label: t('Total'), num: true, render: (r) => html`<${Num} v=${Store.total(r.d)} />` }, { label: t('Remaining'), num: true, render: (r) => html`<b><${Num} v=${r.x.due} /></b>` }, { label: t('Status'), render: (r) => html`<${Badge} s=${r.x.status} />` }]} />`}
       </${Card}>
+      <${Bio.IdPanel} kind=${kind} p=${p} />
       ${p.note && html`<${Card} title=${t('Note')}>${p.note}</${Card}>`}
       ${preview && html`<${PrintPreview} type="report" obj=${preview} title=${t(preview.title)} onClose=${() => setPreview(null)} />`}
     </${Page}>`;
@@ -127,8 +128,9 @@
     const s = useStore();
     const [f, setF] = useState(() => ({ name_en: '', name_ur: '', phone: '', address: '', opening: '', note: '', own_farm: false, active: true, ...(value || {}) }));
     const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
-    const save = () => {
+    const save = async () => {
       if (!(f.name_en || '').trim() && !(f.name_ur || '').trim()) return toast(t('Enter the name'), 'error');
+      if (!(await Bio.checkIdCard(kind, f))) return;
       const list = kind === 'customer' ? s.customers : s.vendors;
       if (f.phone && list.some((p) => p.id !== f.id && p.phone && p.phone.replace(/\D/g, '') === f.phone.replace(/\D/g, ''))) toast(t('Another record already has this phone number'), 'warn');
       const saved = Store.saveParty(kind, { ...f, opening: +f.opening || 0 });
@@ -144,6 +146,7 @@
           <input class="inp num" type="number" value=${f.opening} onInput=${set('opening')} /></${Field}>
         <${Field} label=${t('Note')}><input class="inp" value=${f.note} onInput=${set('note')} /></${Field}>
         ${kind === 'vendor' && html`<label class="check span-2"><input type="checkbox" checked=${f.own_farm} onChange=${set('own_farm')} /> <span><b>${t('Own farm')}</b> — ${t('records quantity only, no rate and no payable')}</span></label>`}
+        <${Bio.IdCardFields} f=${f} setF=${setF} />
         ${f.id && html`<label class="check span-2"><input type="checkbox" checked=${f.active} onChange=${set('active')} /> <span>${t('Active')}</span></label>`}
       </div>
     </${Modal}>`;

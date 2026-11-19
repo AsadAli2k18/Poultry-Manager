@@ -41,5 +41,10 @@
       r.readAsDataURL(file);
     });
   }
-  window.Util = { readImage,  range, periodOptions, linesText, docNo, payNo, matches, csvSafe, kindOfDocRoute, money };
+  /* Pakistani CNIC: 13 digits shown as 12345-1234567-1. The last digit is odd for men and even for women. */
+  const cnicDigits = (v) => String(v || '').replace(/\D/g, '').slice(0, 13);
+  const fmtCnic = (v) => { const d = cnicDigits(v); return d.length <= 5 ? d : d.length <= 12 ? d.slice(0, 5) + '-' + d.slice(5) : d.slice(0, 5) + '-' + d.slice(5, 12) + '-' + d.slice(12); };
+  const cnicMask = (v) => { const d = cnicDigits(v); return d.length === 13 ? d.slice(0, 5) + '-•••••' + d.slice(10, 12) + '-' + d.slice(12) : fmtCnic(d); };
+  const cnicGender = (v) => { const d = cnicDigits(v); return d.length === 13 ? (+d[12] % 2 ? 'M' : 'F') : ''; };
+  window.Util = { cnicDigits, fmtCnic, cnicMask, cnicGender, readImage,  range, periodOptions, linesText, docNo, payNo, matches, csvSafe, kindOfDocRoute, money };
 })();

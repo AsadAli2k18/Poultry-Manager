@@ -11,7 +11,8 @@
     "test": "node tools/run-selftest.js",
     "vendor": "node tools/copy-vendor.js",
     "demo": "node tools/serve.js",
-    "icon": "electron tools/make-icon.js"
+    "icon": "electron tools/make-icon.js",
+    "secugen": "node tools/secugen.js"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",
@@ -33,6 +34,9 @@
       "app/**/*",
       "desktop/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "desktop/vendor/**"
     ],
     "directories": {
       "output": "dist"

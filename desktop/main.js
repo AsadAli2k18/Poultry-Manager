@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const { Store } = require('./db');
 const { Backups } = require('./backup');
+const { Biometrics } = require('./biometric');
 
 // one window only: two windows writing the same data would overwrite each other
 const primary = app.requestSingleInstanceLock();
@@ -15,6 +16,7 @@ let win = null;
 let store = null;
 let backups = null;
 let dirs = null;
+let bio = null; // fingerprint scanner (optional)
 
 function setupData() {
   const root = process.env.PM_DATA_DIR || path.join(app.getPath('documents'), 'PoultryManager');
@@ -61,6 +63,17 @@ function registerIpc() {
     return r;
   });
   ipcMain.handle('app:openFolder', (_e, p) => shell.openPath(p || dirs.root));
+
+  // Fingerprint scanner (optional): status, captures for enrolment, matching. Matches arrive as 'bio:event'.
+  bio = new Biometrics({ gallery: () => { try { return store.biometricGallery(); } catch (e) { return []; } } });
+  bio.on('event', (ev) => { if (win && !win.isDestroyed()) win.webContents.send('bio:event', ev); });
+  ipcMain.handle('bio:configure', (_e, cfg) => bio.configure(cfg));
+  ipcMain.handle('bio:status', () => bio.status());
+  ipcMain.handle('bio:capture', (_e, opts) => bio.capture(opts));
+  ipcMain.handle('bio:identify', (_e, template, exceptParty) => bio.identify(template, exceptParty));
+  ipcMain.handle('bio:match', (_e, a, b) => bio.match(a, b));
+  ipcMain.handle('bio:pause', (_e, on) => bio.pause(on));
+  ipcMain.handle('bio:sim', (_e, what, v) => (what === 'plug' ? bio.simPlug(v) : bio.simPut(v)));
 
   // Printing. The page is written to a temp file so fonts and styles load offline, then printed from a hidden window.
   // Page size comes from the design's @page (a thermal bill is one page exactly as tall as the bill).
@@ -150,4 +163,4 @@ app.whenReady().then(() => {
   backups.start();
 });
 app.on('window-all-closed', () => app.quit());
-app.on('will-quit', () => { if (backups) backups.stop(); if (store) store.close(); });
+app.on('will-quit', () => { if (bio) bio.stop(); if (backups) backups.stop(); if (store) store.close(); });

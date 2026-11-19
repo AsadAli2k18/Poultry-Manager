@@ -8,7 +8,7 @@
   'use strict';
   const LS_KEY = 'pm.demo.v4';
   const DESK = !!(window.PM && window.PM.desktop);
-  const TABLES = ['items', 'customers', 'vendors', 'categories', 'methods', 'invoices', 'receipts', 'payments', 'adjustments', 'expenses', 'drafts'];
+  const TABLES = ['items', 'customers', 'vendors', 'categories', 'methods', 'invoices', 'receipts', 'payments', 'adjustments', 'expenses', 'drafts', 'biometrics'];
   const listeners = new Set();
   let S = null;
   let INFO = {};
@@ -204,6 +204,8 @@
       { id: 'cheque', name_ur: 'چیک', name_en: 'Cheque', active: true },
     ];
   }
+  // fingerprint scanner (optional). level: how sure a match must be (SecuGen 1-9, 5 = normal)
+  const defaultBio = () => ({ enabled: true, listen: true, level: 5 });
   const defaultBackup = () => ({ enabled: true, frequency: 'weekly', day: 0, time: '22:00', folder: INFO.defaultBackupFolder || 'D:\\PoultryManager\\Backups', usb: true, keep: 12, history: [] });
 
   /* A new, empty shop: start from where the business stands today (opening balances only). */
@@ -214,7 +216,7 @@
       settings: {
         goLive: d, theme: 'light',
         shop: { name_ur: 'میری دکان', name_en: 'My Shop', sub_ur: '', sub_en: '', addr_ur: '', addr_en: '', owners: [{ name_ur: '', name_en: '', phone: '' }], logo: '' },
-        accounts: [], print: defaultPrint(), backup: defaultBackup(),
+        accounts: [], print: defaultPrint(), backup: defaultBackup(), bio: defaultBio(),
       },
       items: [{ id: 'i1', name_ur: 'مرغی', name_en: 'Chicken', unit: 'kg', rate: 0, cost: null, opening: 0, active: true }],
       customers: [],
@@ -253,6 +255,7 @@
     TABLES.concat(['audit']).forEach((k) => { if (!Array.isArray(st[k])) st[k] = []; });
     st.counters = { invoice: 0, receipt: 0, in: 0, out: 0, expense: 0, ...(st.counters || {}) };
     st.settings.backup = { ...defaultBackup(), ...(st.settings.backup || {}) };
+    st.settings.bio = { ...defaultBio(), ...(st.settings.bio || {}) };
     if (!st.settings.backup.folder) st.settings.backup.folder = INFO.defaultBackupFolder || '';
     const dp = defaultPrint(); const sp = st.settings.print || {};
     st.settings.print = {}; Object.keys(dp).forEach((k) => (st.settings.print[k] = { ...dp[k], ...(sp[k] || {}) }));
@@ -606,6 +609,9 @@
     },
     saveParty(kind, data) {
       const list = kind === 'customer' ? S.customers : S.vendors;
+      data = { ...data };
+      if ('cnic' in data) data.cnic = String(data.cnic || '').replace(/\D/g, '').slice(0, 13); // stored as 13 digits, shown as 12345-1234567-1
+      ['cnicFront', 'cnicBack'].forEach((k) => { if (data[k]) data[k] = storePhoto(data[k]); });
       if (data.id) {
         const p = byId(list, data.id); const before = p.opening;
         Object.assign(p, data);
@@ -616,6 +622,25 @@
       do { code = (kind === 'customer' ? 'C-' : 'V-') + String(n++).padStart(3, '0'); } while (used.has(code));
       const p = { ...data, id: uid() + uid(), code, active: true, opening: +data.opening || 0 };
       list.push(p); audit('create', p.code, kind); emit(); return p;
+    },
+    /* Fingerprints (optional): templates only. Enrolling the same finger again replaces it; removing keeps an inactive record. */
+    saveBiometric(partyId, finger, templates, quality, sdk) {
+      const p = party('customer', partyId); if (!p || !templates || !templates.length) return null;
+      S.biometrics.filter((b) => b.partyId === partyId && b.finger === finger && b.active).forEach((b) => { b.active = false; b.removedAt = today() + ' ' + nowTime(); });
+      const rec = { id: uid() + uid(), partyId, finger, templates, quality: Math.round(quality || 0), sdk: sdk || 'secugen', enrolledAt: today() + ' ' + nowTime(), active: true };
+      S.biometrics.push(rec); audit('enroll', p.code, 'fingerprint — ' + finger); emit(); return rec;
+    },
+    removeBiometric(id) {
+      const b = byId(S.biometrics, id); if (!b || !b.active) return;
+      b.active = false; b.removedAt = today() + ' ' + nowTime();
+      const p = party('customer', b.partyId); audit('remove', p ? p.code : '', 'fingerprint — ' + b.finger); emit();
+    },
+    fingersOf: (partyId) => S.biometrics.filter((b) => b.partyId === partyId && b.active),
+    // another customer or vendor with the same CNIC (13 digits)
+    cnicOwner(digits, exceptId) {
+      const d = String(digits || '').replace(/\D/g, ''); if (d.length !== 13) return null;
+      const hit = (l, kind) => { const p = l.find((x) => x.id !== exceptId && x.cnic === d); return p ? { kind, p } : null; };
+      return hit(S.customers, 'customer') || hit(S.vendors, 'vendor');
     },
     saveItem(data) {
       let it;
@@ -668,7 +693,7 @@
     },
     async eraseAll() {
       const wasSample = !!S.settings.sample;
-      const keep = { shop: S.settings.shop, print: S.settings.print, backup: S.settings.backup, accounts: S.settings.accounts, theme: S.settings.theme };
+      const keep = { shop: S.settings.shop, print: S.settings.print, backup: S.settings.backup, accounts: S.settings.accounts, theme: S.settings.theme, bio: S.settings.bio };
       const safe = await A.backupNow('safety', 'Before erasing all data');
       if (!safe.ok) throw new Error(safe.error || 'Safety backup failed');
       const st = blank(); Object.assign(st.settings, keep);

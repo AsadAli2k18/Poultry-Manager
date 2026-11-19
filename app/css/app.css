@@ -266,3 +266,35 @@ textarea.inp{padding:8px 11px}
 .tab-x:hover{opacity:1;background:var(--sunken)}
 .tab-new{border:0;background:none;cursor:pointer;color:var(--muted,#64748b);padding:6px 8px;border-radius:6px;flex-shrink:0;align-self:center}
 .tab-new:hover{background:var(--surface);color:var(--brand)}
+
+/* ---------- ID card and fingerprint (optional) ---------- */
+.bio-pill{cursor:pointer;border:0}.bio-pill.off{background:var(--sunken);color:var(--tx3)}.bio-pill.busy{animation:biopulse 1s infinite}
+@keyframes biopulse{50%{opacity:.55}}
+.picker.has-bio .picker-btn{padding-inline-end:46px}
+.picker-bio{position:absolute;inset-inline-end:28px;top:50%;transform:translateY(-50%);z-index:2;width:34px;height:34px;border-radius:8px;color:var(--brand);font-size:1.15rem;display:grid;place-items:center}
+.picker-bio:hover{background:var(--brand-lt)}
+.link-btn{color:var(--brand);font-weight:600;padding:2px 4px;display:inline-flex;gap:6px;align-items:center;text-align:start}.link-btn:hover{text-decoration:underline}
+.idcard{border:1px dashed var(--bd2);border-radius:var(--rl);padding:10px 14px 4px;margin:0}
+.idcard legend{padding:0 6px;font-weight:700;display:flex;gap:6px;align-items:center}
+.inp-bad{border-color:var(--red)!important}
+.idpanel{display:grid;grid-template-columns:1fr 280px;gap:18px}
+@media (max-width:900px){.idpanel{grid-template-columns:1fr}}
+.id-row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:3px 0}
+.id-photos{display:flex;gap:8px;margin-top:8px}.id-photos .thumb{cursor:zoom-in}
+.id-big{display:block;max-width:100%;margin:auto;border-radius:10px}
+.id-bio{border-inline-start:1px solid var(--bd);padding-inline-start:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.finger-row{display:flex;gap:8px;align-items:center}.finger-row .bi{color:var(--brand);font-size:1.2rem}
+.enroll{text-align:center;padding:10px 0}
+.enroll-ic{font-size:4rem;color:var(--brand);line-height:1.1}.enroll-ic.touch{animation:biopulse 1.1s infinite}.enroll-ic.done{color:var(--green)}.enroll-ic.error{color:var(--red)}
+.enroll-msg{font-size:1.1rem;font-weight:600;margin:8px 0 14px;min-height:1.6em}
+.enroll-steps{display:flex;gap:10px;justify-content:center;margin-bottom:6px}
+.enroll-steps span{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--bd2);color:var(--tx3);font-weight:700;font-family:'Segoe UI',Arial,sans-serif}
+.enroll-steps span.on{background:var(--green);border-color:var(--green);color:#fff}.enroll-steps span.now{border-color:var(--brand);color:var(--brand)}
+.found-head{display:flex;gap:14px;align-items:center}
+.found-av{width:56px;height:56px;border-radius:50%;background:var(--brand-lt);color:var(--brand);display:grid;place-items:center;font-size:1.7rem;flex:none}
+.found-name{font-size:1.35rem;font-weight:700}
+.found-bal{margin-inline-start:auto;text-align:end}.found-bal b{font-size:1.3rem}
+.tbl-mini td{padding:6px 8px}
+.warn-box{margin-top:10px;padding:8px 12px;border-radius:8px;background:var(--yellow-bg);color:var(--yellow)}
+.bio-status{display:flex;align-items:center;gap:8px;margin:10px 0}
+.bio-status .dot{width:10px;height:10px;border-radius:50%;background:var(--tx3)}.bio-status .dot.on{background:var(--green)}

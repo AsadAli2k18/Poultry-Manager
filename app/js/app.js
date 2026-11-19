@@ -139,7 +139,7 @@
     const s = useStore();
     const [, setTick] = useState(0);
     useEffect(() => { const f = () => setTick((n) => n + 1); tabSubs.add(f); return () => tabSubs.delete(f); }, []);
-    useEffect(() => { tabsChanged(); }, []);
+    useEffect(() => { tabsChanged(); Bio.init(); }, []);
     const loc = cur();
     const [online, setOnline] = useState(navigator.onLine);
     const [modal, setModal] = useState(null);
@@ -162,6 +162,7 @@
           <button class="icon-btn menu-btn" onClick=${() => setMenu(!menu)} aria-label="menu"><${Ico} n="list" /></button>
           <div class="tb-date"><${Ico} n="calendar3" /> ${I18N.dayName(Store.dow(nowD))} <b class="num">${I18N.dmy(nowD)}</b></div>
           <span class="grow"></span>
+          <${Bio.Pill} />
           <span class=${'net ' + (online ? 'on' : 'off')} title=${t(online ? 'Internet connected' : 'No internet — everything still works offline')}><${Ico} n=${online ? 'wifi' : 'wifi-off'} /> ${t(online ? 'Online' : 'Offline')}</span>
           <div class="lang-sw"><button class=${I18N.lang === 'ur' ? 'on' : ''} onClick=${() => I18N.setLang('ur')}>اردو</button><button class=${I18N.lang === 'en' ? 'on' : ''} onClick=${() => I18N.setLang('en')}>EN</button></div>
           <button class="icon-btn" title=${t('Theme')} onClick=${() => { Store.setSettings('theme', s.settings.theme === 'dark' ? 'light' : 'dark'); applyTheme(); }}><${Ico} n=${s.settings.theme === 'dark' ? 'sun' : 'moon'} /></button>
@@ -173,6 +174,7 @@
       </div>
       ${modal && modal.type === 'party' && html`<${Screens.PartyForm} kind=${modal.kind} value=${modal.value} onSaved=${modal.onSaved} onClose=${() => setModal(null)} />`}
       ${modal && modal.type === 'payment' && html`<${Screens.PaymentModal} id=${modal.id} onClose=${() => setModal(null)} />`}
+      <${Bio.FoundHost} />
     </div>`;
   }
 

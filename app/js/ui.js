@@ -109,8 +109,13 @@
     useEffect(() => { const f = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false); document.addEventListener('mousedown', f); return () => document.removeEventListener('mousedown', f); }, []);
     const sel = list.find((p) => p.id === value);
     const ql = q.toLowerCase();
-    const hits = list.filter((p) => !q || [p.name_ur, p.name_en, p.code, p.phone].some((x) => (x || '').toLowerCase().includes(ql)));
-    return html`<div class="picker" ref=${ref}>
+    const hits = list.filter((p) => !q || [p.name_ur, p.name_en, p.code, p.phone, p.cnic, p.cnic && Util.fmtCnic(p.cnic)].some((x) => (x || '').toLowerCase().includes(ql)));
+    // fingerprint: a finger placed while no customer is chosen fills it in (only in the visible tab)
+    const bio = kind === 'customer' && window.Bio && Bio.useBio();
+    useEffect(() => (kind === 'customer' && !value && window.Bio ? Bio.claim(ref, (id) => { if (!list.some((p) => p.id === id)) return false; onChange(id); return true; }) : undefined), [kind, value, list.length]);
+    const scan = async () => { const id = await Bio.scanOnce(); if (id && list.some((p) => p.id === id)) onChange(id); };
+    return html`<div class=${'picker' + (bio && bio.state === 'ready' ? ' has-bio' : '')} ref=${ref}>
+      ${bio && bio.state === 'ready' && html`<button type="button" class="picker-bio" title=${t('Find by fingerprint')} onClick=${scan}><${Ico} n="fingerprint" /></button>`}
       <button type="button" class=${'inp picker-btn' + (sel ? '' : ' placeholder')} onClick=${() => setOpen(!open)} autoFocus=${autoFocus}>
         ${sel ? html`<span><b>${nm(sel)}</b> <small class="muted num">${sel.code}${sel.phone ? ' · ' + sel.phone : ''}</small></span>` : t(kind === 'customer' ? 'Choose customer' : 'Choose vendor')}<${Ico} n="chevron-down" /></button>
       ${open && html`<div class="picker-pop"><input class="inp" autoFocus placeholder=${t('Search by name, ID or phone')} value=${q} onInput=${(e) => setQ(e.target.value)} />

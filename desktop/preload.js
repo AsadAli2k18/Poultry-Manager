@@ -33,5 +33,16 @@ contextBridge.exposeInMainWorld('PM', {
   printReceipt: (html, opts) => ipcRenderer.invoke('print:receipt', html, opts),
   savePdf: (html, opts) => ipcRenderer.invoke('print:pdf', html, opts),
   printers: () => ipcRenderer.invoke('print:printers'),
+  // fingerprint scanner (optional)
+  bio: {
+    configure: (cfg) => ipcRenderer.invoke('bio:configure', cfg),
+    status: () => ipcRenderer.invoke('bio:status'),
+    capture: (opts) => ipcRenderer.invoke('bio:capture', opts),
+    identify: (template, exceptParty) => ipcRenderer.invoke('bio:identify', template, exceptParty),
+    match: (a, b) => ipcRenderer.invoke('bio:match', a, b),
+    pause: (on) => ipcRenderer.invoke('bio:pause', on),
+    sim: (what, v) => ipcRenderer.invoke('bio:sim', what, v),
+    onEvent: (fn) => { const h = (_e, ev) => fn(ev); ipcRenderer.on('bio:event', h); return () => ipcRenderer.removeListener('bio:event', h); },
+  },
   info: () => call('app:info'),
 });
