@@ -14,6 +14,8 @@ Urdu first, with English one click away · Works with no internet · Windows 10 
 ![Tests](https://img.shields.io/badge/end--to--end%20checks-120%20passing-2EA043)
 ![Version](https://img.shields.io/badge/version-1.0.0-4F46E5)
 
+[**⬇ Download the Windows installer**](https://github.com/AsadAli2k18/Poultry-Manager/releases/latest)
+
 <img src="docs/screenshots/dashboard.png" width="900" alt="Dashboard">
 
 </div>
@@ -66,7 +68,7 @@ A poultry shop runs on a register (کھاتہ): live birds and meat come in from
 
 ## Install on the shop PC
 
-1. Run **`PoultryManager-Setup-1.0.0.exe`** (from `dist/` after `npm run dist`).
+1. Download **`PoultryManager-Setup-1.0.0.exe`** from [Releases](https://github.com/AsadAli2k18/Poultry-Manager/releases/latest) and run it. Windows may say "Windows protected your PC" because the installer is not signed: click **More info → Run anyway**.
 2. Open **Poultry Manager** from the desktop shortcut. The first password is `1234`. Change it in **Settings → Password**.
 3. **Settings → Shop profile**: shop name, address and phone numbers.
 4. **Items & rates**: items and opening stock. Then add customers and vendors with their opening balances.
