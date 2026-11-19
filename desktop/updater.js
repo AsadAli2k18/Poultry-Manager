@@ -19,12 +19,13 @@ function setupUpdates({ send, backup }) {
   let autoUpdater;
   try { ({ autoUpdater } = require('electron-updater')); } catch (e) { state.state = 'off'; state.error = e.message; return { status: () => state, check: async () => state, install: () => {} }; }
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true; // "Later": installs when the app is closed
+  autoUpdater.autoInstallOnAppQuit = !testFeed; // "Later": installs when the app is closed (never in a test run)
   autoUpdater.logger = null;
   if (testFeed) {
     autoUpdater.forceDevUpdateConfig = true;
     autoUpdater.setFeedURL({ provider: 'github', owner: 'AsadAli2k18', repo: 'Poultry-Manager' });
-    autoUpdater.currentVersion = new (require('semver').SemVer)(testFeed);
+    const semver = require(require.resolve('semver', { paths: [require.resolve('electron-updater')] })); // the updater's own copy
+    autoUpdater.currentVersion = new semver.SemVer(testFeed);
     state.version = testFeed;
   }
 
