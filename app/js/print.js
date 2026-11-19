@@ -213,6 +213,7 @@ td.it{word-break:break-word;width:100%}
 .stamp{display:inline-block;border:2px solid #000;padding:0 2mm;font-weight:700;margin:1mm 0}
 .foot{text-align:center}
 .foot .ty{font-weight:700;font-size:1.05em}
+.dev{margin-top:5mm;padding-top:1.5mm;border-top:1px dashed #000;text-align:center;direction:ltr;font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:400;line-height:1.35}
 `;
   }
   const pick = (cfg, ur, en) => (cfg.lang === 'en' ? en || ur : cfg.lang === 'ur' ? ur || en : [ur, en].filter(Boolean).join(' / '));
@@ -278,6 +279,7 @@ td.it{word-break:break-word;width:100%}
     if (doc.note) b += `<div class="small">${t('Note')}: ${esc(doc.note)}</div>`;
     const note = pick(cfg, cfg.note_ur, cfg.note_en); const ty = pick(cfg, cfg.footer_ur, cfg.footer_en);
     if (note || ty) b += `<div class="sep"></div><div class="foot blk">${note ? `<div class="small">${esc(note)}</div>` : ''}${ty ? `<div class="ty">${esc(ty)}</div>` : ''}</div>`;
+    b += `<div class="dev">Software developed by AASolutions<br>Contact: <span class="num">0305-8592435</span></div>`; // developer credit, always last
     const base = esc(location.href.replace(/[^/]*$/, ''));
     return `<!doctype html><html lang="${cfg.lang === 'en' ? 'en' : 'ur'}"><head><meta charset="utf-8"><base href="${base}">
       <link rel="stylesheet" href="css/fonts.css"><style>${thermalCss(cfg)}</style></head><body><div class="rc">${b}</div></body></html>`;

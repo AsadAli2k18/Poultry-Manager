@@ -1,18 +1,87 @@
+<div align="center">
+
+<img src="desktop/icon.png" width="96" alt="Poultry Manager logo">
+
 # Poultry Manager
 
-Offline desktop software for a poultry and meat shop run by one owner. It covers sales bills, stock received from vendors and the owner's own farm, customer and vendor ledgers (کھاتہ), recoveries, vendor payments, expenses, reports, a print designer and weekly backups. The interface is Urdu first, with English one click away.
+**Offline desktop software for poultry and meat shops: sales, stock, khata ledgers, recoveries, thermal receipts and fingerprint customer lookup.**
 
-> **Status: working desktop app (v1.0).** Data is saved in a SQLite database on the PC, backups run on schedule, and every correction is kept on record. The sample shop names, people and phone numbers that can be loaded for practice are all made up.
+Urdu first, with English one click away · Works with no internet · Windows 10 / 11
+
+![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-local%20database-003B57?logo=sqlite&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)
+![Tests](https://img.shields.io/badge/end--to--end%20checks-120%20passing-2EA043)
+![Version](https://img.shields.io/badge/version-1.0.0-4F46E5)
+
+<img src="docs/screenshots/dashboard.png" width="900" alt="Dashboard">
+
+</div>
+
+---
+
+## Why it exists
+
+A poultry shop runs on a register (کھاتہ): live birds and meat come in from vendors and the owner's own farm, and go out on credit to hotels, shops and regular customers. Money comes back in parts, in cash, by Easypaisa, JazzCash or bank. Poultry Manager replaces the register without changing how the shop works. Every bill updates stock and the customer's balance at once, and every rupee can be traced back to a bill or a payment.
+
+## Features
+
+| | |
+|---|---|
+| 🧾 **Sales & receipts** | Sale invoices with kg × rate lines, part payment at the counter, draft bills, corrections that keep the original on record |
+| 🚚 **Stock in** | Stock receipts from vendors or the own farm, vendor bill photo, mortality and weight-loss corrections, live stock per item |
+| 📒 **Khata ledgers** | Register-style customer and vendor ledgers (date, details, rate, debit, credit, balance), unpaid bills, printable statements |
+| 💵 **Recoveries & payments** | Cash, Easypaisa, JazzCash, bank and cheque, with reference numbers and who handled them, linked to bills |
+| 🖨️ **Thermal receipts** | 80 mm and 58 mm receipts sent straight to the printer (ESC/POS), cut after the last line, Urdu printed sharply, balance shown as of that bill |
+| 🎨 **Print designer** | A4 / A5 / A6 and thermal layouts, header, columns, fonts, bill numbers, footer, live preview at actual size, Save as PDF |
+| 🪪 **ID card (CNIC)** | Optional Pakistani CNIC details and card photos on each customer, with format, duplicate and expiry checks |
+| ☝️ **Fingerprint lookup** | Optional SecuGen scanner. Place an enrolled finger and the customer appears, or is filled into the open bill |
+| 📊 **Reports** | Daily and period summary, sales, stock movement, profit, receivables and payables, expenses |
+| 🗂️ **Tabs** | Several bills and ledgers open side by side; a half-typed bill survives switching tabs |
+| 💾 **Backups** | Scheduled and verified SQLite backups, USB copy, one-click restore with a safety copy first |
+| 🔒 **Safe by design** | Nothing is ever deleted: cancellations reverse stock and balances and stay in the activity log |
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/dashboard-urdu.png" alt="Dashboard in Urdu"><br><sub><b>Urdu interface</b>: right-to-left with the Noto Nastaliq font</sub></td>
+<td width="50%"><img src="docs/screenshots/new-sale.png" alt="New sale invoice"><br><sub><b>New sale</b>: customer balance, lines, payment at the counter, draft</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/receipt-preview.png" alt="Thermal receipt preview"><br><sub><b>80 mm thermal receipt</b>: previous balance, this bill, received, current balance</sub></td>
+<td><img src="docs/screenshots/customer-ledger.png" alt="Customer ledger"><br><sub><b>Customer khata</b>: running balance, every bill and payment linked</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/fingerprint-found.png" alt="Customer found by fingerprint"><br><sub><b>Fingerprint lookup</b>: balance, last bills, New bill / Recovery / Ledger</sub></td>
+<td><img src="docs/screenshots/id-card-fingerprint.png" alt="ID card and fingerprint"><br><sub><b>CNIC & enrolled fingers</b>: masked number, expiry, card photos</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/print-designer.png" alt="Print designer"><br><sub><b>Print designer</b>: thermal layout with live preview at actual width</sub></td>
+<td><img src="docs/screenshots/reports.png" alt="Reports"><br><sub><b>Reports</b>: sales, stock, profit, receivables</sub></td>
+</tr>
+</table>
+
+<sub>Screenshots use the built-in sample shop. All names and phone numbers in it are made up.</sub>
 
 ## Install on the shop PC
 
-1. Run `PoultryManager-Setup-1.0.0.exe` (built with `npm run dist`, found in `dist/`).
-2. Open **Poultry Manager** from the desktop shortcut. The first-time password is `1234`. Change it in **Settings → Password**.
-3. In **Settings → Shop profile**, enter the shop name, address and phone numbers.
-4. Add items and opening stock (**Items & rates**), then customers and vendors with their opening balances.
-5. In **Settings → Backup**, choose the backup day and folder, then press **Backup now** once.
+1. Run **`PoultryManager-Setup-1.0.0.exe`** (from `dist/` after `npm run dist`).
+2. Open **Poultry Manager** from the desktop shortcut. The first password is `1234`. Change it in **Settings → Password**.
+3. **Settings → Shop profile**: shop name, address and phone numbers.
+4. **Items & rates**: items and opening stock. Then add customers and vendors with their opening balances.
+5. **Settings → Backup**: choose the backup day and folder, then press **Backup now** once.
 
 Nothing else is needed: no XAMPP, no browser, no internet.
+
+### Optional hardware
+
+| Device | Tested with | Setup |
+|---|---|---|
+| Thermal receipt printer | Black Copper BC-87AC (80 mm, USB) | Install the printer's Windows driver. The app sends receipts directly (ESC/POS), so the driver only has to provide the printer. Choose it in **Settings → Print designer → Printer**. |
+| Fingerprint scanner | SecuGen Hamster Pro 20 (U20-AP) | Install SecuGen's driver for the scanner. The app finds it automatically ("Scanner ready" in the top bar). Enroll customers from their page. See [docs/FINGERPRINT-DESIGN.md](docs/FINGERPRINT-DESIGN.md). |
+
+Both are optional. Without them, every screen works the same.
 
 ## Where the data lives
 
@@ -20,16 +89,9 @@ Nothing else is needed: no XAMPP, no browser, no internet.
 |---|---|
 | Database (one file) | `Documents\PoultryManager\data\poultry.db` |
 | Backups | `Documents\PoultryManager\Backups` (or the folder chosen in Settings), plus `PoultryManager-Backups` on a USB drive if one is plugged in |
-| Safety copies (taken before a restore, an erase, or loading sample data) | `Documents\PoultryManager\data\safety` |
-| Backup history | `Documents\PoultryManager\backup-log.json` |
+| Safety copies (before a restore, an erase or loading sample data) | `Documents\PoultryManager\data\safety` |
 
-Uninstalling the program never deletes this folder.
-
-## Backups and restore
-
-- **Automatic:** weekly by default (Sunday 22:00), or daily or monthly. If the PC is off at that time, the backup runs as soon as the app opens.
-- **Each backup** is a complete copy of the database, checked before it is kept. The last N are kept (12 by default), and older ones are deleted.
-- **Restore:** in **Settings → Backup → Choose backup file…**, pick a `.db` backup. The app shows how many bills it holds and asks for confirmation, then takes a safety copy of the current data, restores, and reopens.
+Uninstalling the program never deletes this folder. Fingerprints are stored as templates (codes), never as pictures.
 
 ## Corrections
 
@@ -42,24 +104,38 @@ Nothing is ever deleted. Every change is kept in the activity log.
 | Expense | ✓ | ✓ |
 | Stock correction (mortality, weight loss…) | ✓ stock goes back | add a new one |
 | Customer, vendor, item | edit (opening balance changes are logged) | |
+| Fingerprint | remove (kept as inactive, logged) | enroll again |
 
 ## For developers
 
 ```bash
-npm install          # Electron, SQLite (rebuilt for Electron automatically), build tools
-npm start            # run the app
-npm test             # end-to-end checks of the real app on a throwaway data folder
-npm run dist         # build dist/PoultryManager-Setup-<version>.exe
-npm run demo         # browser-only demo with dummy data at http://localhost:5180
+npm install            # Electron, SQLite (rebuilt for Electron automatically), build tools
+npm run secugen -- "<FDx_SDK_Pro_Windows_….zip>"   # once: copies SecuGen's DLLs (not kept in git)
+npm start              # run the app
+npm test               # 120 end-to-end checks of the real app on a throwaway data folder
+npm run screenshots    # refresh docs/screenshots from the sample shop
+npm run dist           # build dist/PoultryManager-Setup-<version>.exe
 ```
 
 | Path | Contents |
 |---|---|
 | `desktop/main.js` | Electron shell: window, data folder, IPC, printing |
-| `desktop/db.js` | SQLite schema and storage. Each record is kept as JSON, and its key fields are also real columns (dates, parties, totals, status) plus `doc_lines`, so the data can be queried outside the app. |
+| `desktop/db.js` | SQLite schema (v3) and storage. Each record is kept as JSON, and its key fields are also real columns, so the data can be queried outside the app. |
 | `desktop/backup.js` | Scheduler, verified backups, keep-N, USB copy, restore with a safety copy |
+| `desktop/escpos.js` | Direct receipt printing: renders the bill at 203 dpi and sends ESC/POS raster + cut |
+| `desktop/biometric.js` | Fingerprint scanner helper process (SecuGen), listening loop, 1:N matching, simulator |
 | `desktop/preload.js` | The only functions the screens can call (`window.PM`) |
-| `app/js/store.js` | Data layer for the screens. It computes stock, balances, ledgers and statuses from the entries, and saves each change to SQLite before the screen moves on. |
+| `app/js/store.js` | Data layer: stock, balances, ledgers and statuses computed from the entries; every change is on disk before the screen moves on |
+| `app/js/print.js` | Bills, receipts and reports for paper and thermal printers |
+| `app/js/bio.js` | CNIC and fingerprint screens |
 | `app/` | Front end: Preact + htm with no build step. Libraries and the Urdu font are bundled in `app/vendor/`. |
-| `tools/selftest/` | The `npm test` scripts |
-| `docs/` | Requirements (`SRS-v2.md`) and the build plan |
+| `tools/selftest/` | The `npm test` scripts (flows, restore, thermal, tabs and drafts, fingerprint) |
+| `docs/` | Requirements (`SRS-v2.md`), build plan, fingerprint design |
+
+---
+
+<div align="center">
+
+Developed by **AASolutions** · Contact: **0305-8592435**
+
+</div>

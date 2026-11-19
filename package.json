@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Poultry Manager - offline desktop software for a poultry and meat shop",
   "main": "desktop/main.js",
+  "author": "AASolutions (0305-8592435)",
   "private": true,
   "scripts": {
     "start": "electron .",
@@ -12,7 +13,8 @@
     "vendor": "node tools/copy-vendor.js",
     "demo": "node tools/serve.js",
     "icon": "electron tools/make-icon.js",
-    "secugen": "node tools/secugen.js"
+    "secugen": "node tools/secugen.js",
+    "screenshots": "electron tools/screenshots.js"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",
@@ -29,7 +31,7 @@
   "build": {
     "appId": "pk.poultrymanager.app",
     "productName": "Poultry Manager",
-    "copyright": "Poultry Manager",
+    "copyright": "© 2026 AASolutions",
     "files": [
       "app/**/*",
       "desktop/**/*",
