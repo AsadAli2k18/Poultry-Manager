@@ -27,7 +27,8 @@ pkg.version = version;
 fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n');
 run('git', ['commit', '-am', `Release ${version}`]);
 run('git', ['push', 'origin', 'HEAD']);
-npx(['electron-builder', '--win', '--publish', 'always'], { env: { ...process.env, GH_TOKEN: token } });
+const publish = () => npx(['electron-builder', '--win', '--publish', 'always'], { env: { ...process.env, GH_TOKEN: token } });
+try { publish(); } catch (e) { console.log('Upload failed (often a slow connection). Trying once more...'); publish(); } // large uploads sometimes drop
 const repo = pkg.build.publish[0];
 if (notes) run('gh', ['release', 'edit', 'v' + version, '--repo', `${repo.owner}/${repo.repo}`, '--notes', notes + '\n\nDeveloped by AASolutions · 0305-8592435']);
 console.log(`\nReleased ${version}: https://github.com/${repo.owner}/${repo.repo}/releases/tag/v${version}`);
